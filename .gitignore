@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# 大体积可再生扫描明细（33万+行，44MB，可用脚本秒级重跑）
+wave_catcher_base_break.csv
