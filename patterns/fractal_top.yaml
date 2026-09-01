@@ -1,0 +1,14 @@
+# 顶分型（三K），仅记录确认日前 20 天涨幅 >= 5% 的样本（含力度特征）
+name: fractal_top
+detector:
+  type: fractal_top
+  params:
+    min_rise_20d: 5.0
+min_data_days: 140
+contract:
+  date: confirm_date
+  price: base_price
+sort:
+  by: confirm_date
+  ascending: false
+output: catch_fractal_top.csv

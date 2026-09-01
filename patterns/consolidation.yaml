@@ -1,0 +1,15 @@
+# 长期窄幅横盘：>= 60 天、均价 ±10%（贪婪扩展）
+name: consolidation
+detector:
+  type: consolidation
+  params:
+    min_days: 60
+    band_pct: 10.0
+min_data_days: 90           # 旧版 min_days + 30
+contract:
+  date: end_date
+  price: end_price          # 横盘结束日收盘价
+sort:
+  by: end_date
+  ascending: false
+output: catch_consolidation.csv

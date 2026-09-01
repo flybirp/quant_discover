@@ -1,0 +1,18 @@
+# 加速下跌后横盘平台：末期杀跌 + >= 15 天、波幅 <= 5% 的横盘
+name: flat_zone
+detector:
+  type: flat_zone
+  params:
+    lookback_decline: 40
+    lookback_accel: 20
+    accel_threshold: 1.5
+    min_flat_days: 15
+    flat_range_pct_max: 5.0
+min_data_days: 105          # 旧版 40 + 20 + 15 + 30
+contract:
+  date: flat_end_date
+  price: flat_avg_price     # 横盘均价买点
+sort:
+  by: flat_start_date
+  ascending: false
+output: catch_flat_zone.csv

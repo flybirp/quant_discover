@@ -1,0 +1,9 @@
+name: long_consolidation
+input: output/catch_consol_scanner.csv
+horizons:
+- days: 120
+- days: 250
+output: an_long_consolidation.csv
+ic:
+  signal: vol_shrink_ratio
+  horizon: ret_120d

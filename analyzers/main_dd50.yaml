@@ -1,0 +1,9 @@
+name: main_dd50
+input: output/catch_main_dd50.csv
+horizons:
+- days: 120
+- days: 250
+output: an_main_dd50.csv
+ic:
+  signal: max_drawdown_pct
+  horizon: ret_120d

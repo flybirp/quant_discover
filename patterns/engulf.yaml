@@ -1,0 +1,16 @@
+# 看跌吞没：阳线实体被紧邻阴线实体完全吞没（红K 1.1→1.2，绿K 1.2→1.1）
+name: engulf
+detector:
+  type: engulf
+  params:
+    require_full: true
+    min_red_body: 1.0
+    min_rise_20d: 5.0
+min_data_days: 140
+contract:
+  date: engulf_date
+  price: base_price
+sort:
+  by: engulf_date
+  ascending: false
+output: catch_engulf.csv

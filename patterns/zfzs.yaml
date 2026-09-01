@@ -1,0 +1,14 @@
+# zhixing 金叉波段：zhixing_fast 金叉 zhixing_slow 入场，MA20 死叉 MA60 离场
+name: zfzs
+detector:
+  type: zfzs
+  params:
+    min_days: 20
+min_data_days: 200          # 旧版 load_data(f, 200)
+contract:
+  date: entry_date
+  price: entry_price
+sort:
+  by: entry_date
+  ascending: false
+output: catch_zfzs.csv

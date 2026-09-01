@@ -1,0 +1,17 @@
+# 超跌反弹形态：加速下跌后触底反弹 >= 30%（只记录数据点）
+name: oversold
+detector:
+  type: oversold
+  params:
+    lookback_decline: 40
+    lookback_accel: 20
+    accel_threshold: 1.5
+    bounce_target_pct: 30.0
+min_data_days: 110          # 旧版 40 + 20 + 50
+contract:
+  date: bottom_date
+  price: bottom_price
+sort:
+  by: bounce_date
+  ascending: false
+output: catch_oversold.csv

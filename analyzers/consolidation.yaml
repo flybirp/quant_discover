@@ -1,0 +1,10 @@
+name: consolidation
+input: output/catch_consolidation.csv
+horizons:
+- days: 60
+- days: 90
+- days: 120
+output: an_consolidation.csv
+ic:
+  signal: duration_days
+  horizon: ret_120d

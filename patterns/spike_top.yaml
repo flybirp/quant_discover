@@ -1,0 +1,23 @@
+# 尖顶形态：翻倍 -> 单顶 -> 腰斩
+# 相对旧版：周线单顶从 5 日块改为真自然周（行为升级，verify 豁免）
+name: spike_top
+detector:
+  type: spike_top
+  params:
+    local_n: 30
+    mult: 2.0
+    peak_confirm_pct: 20.0
+    rebound_pct: 20.0
+    peak_ratio: 0.9
+    max_up_days: 500
+min_data_days: 110          # 旧版 local_n*2 + 50
+dedup:                      # 同一"顶点->腰斩"事件可能被多个历史低点共享，保留最早低点
+  keys: [code, peak_date, half_date]
+  keep_earliest: low_date
+contract:
+  date: half_date
+  price: half_price         # 腰斩日收盘价
+sort:
+  by: peak_date
+  ascending: false
+output: catch_spike_top.csv

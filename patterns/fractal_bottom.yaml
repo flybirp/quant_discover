@@ -1,0 +1,14 @@
+# 底分型（三K），仅记录确认日前 20 天跌幅 >= 10% 的深跌样本
+name: fractal_bottom
+detector:
+  type: fractal_bottom
+  params:
+    min_drop_20d: 10.0
+min_data_days: 140
+contract:
+  date: confirm_date
+  price: base_price
+sort:
+  by: confirm_date
+  ascending: false
+output: catch_fractal_bottom.csv

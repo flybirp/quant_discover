@@ -1,0 +1,23 @@
+name: base_break
+input: output/catch_base_break.csv
+horizons:
+- weeks: 1
+- weeks: 2
+- weeks: 3
+- weeks: 4
+events:
+- name: recover_base
+  ref_col: base_low
+  horizon:
+    weeks: 4
+group_cols:
+- group
+- volume_type
+stability:
+  year_from: base_date
+  exclude_years:
+  - '2025'
+output: an_base_break.csv
+ic:
+  signal: penetration_pct
+  horizon: ret_4w

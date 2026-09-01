@@ -1,0 +1,16 @@
+name: effort_defeat
+input: output/catch_effort_defeat.csv
+horizons:
+- days: 5
+- days: 10
+- days: 20
+events:
+- name: break_low_10d
+  ref_col: key_low
+  horizon:
+    days: 10
+  type: below
+output: an_effort_defeat.csv
+ic:
+  signal: effort_ratio
+  horizon: ret_5d

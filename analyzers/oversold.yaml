@@ -1,0 +1,10 @@
+name: oversold
+input: output/catch_oversold.csv
+horizons:
+- days: 30
+- days: 90
+- days: 200
+output: an_oversold.csv
+ic:
+  signal: decline_pct
+  horizon: ret_90d

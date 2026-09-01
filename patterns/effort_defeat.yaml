@@ -1,0 +1,15 @@
+# 看涨击败（威科夫努力vs结果）：放量阴线/十字星被阳线收破高点（每关键K首次）
+name: effort_defeat
+detector:
+  type: effort_defeat
+  params:
+    vol_ratio_min: 1.5
+    gap_days_max: 5
+min_data_days: 80
+contract:
+  date: defeat_date
+  price: base_price
+sort:
+  by: defeat_date
+  ascending: false
+output: catch_effort_defeat.csv

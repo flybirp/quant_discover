@@ -3,3 +3,7 @@ __pycache__/
 
 # 大体积可再生扫描明细（33万+行，44MB，可用脚本秒级重跑）
 wave_catcher_base_break.csv
+
+# 新架构可再生产物（全量扫描输出与对照基线，合计 400MB+，脚本可重跑）
+output/
+_baseline/

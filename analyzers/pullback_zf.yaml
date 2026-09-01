@@ -1,0 +1,16 @@
+name: pullback_zf
+input: output/catch_pullback_zf.csv
+horizons:
+- days: 5
+- days: 10
+- days: 20
+events:
+- name: new_high_20d
+  ref_col: prior_high
+  horizon:
+    days: 20
+  type: above
+output: an_pullback_zf.csv
+ic:
+  signal: dist_pct
+  horizon: ret_20d

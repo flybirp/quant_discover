@@ -1,0 +1,16 @@
+name: fractal_top
+input: output/catch_fractal_top.csv
+horizons:
+- days: 5
+- days: 10
+- days: 20
+events:
+- name: new_high_20d
+  ref_col: fractal_high
+  horizon:
+    days: 20
+  type: above
+output: an_fractal_top.csv
+ic:
+  signal: depth
+  horizon: ret_20d

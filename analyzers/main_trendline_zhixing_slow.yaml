@@ -1,0 +1,7 @@
+# 主升浪（趋势线 zhixing_slow）：波段起点基准，120/250 交易日收益
+name: main_trendline_zhixing_slow
+input: output/catch_main_trendline_zhixing_slow.csv
+horizons:
+  - {days: 120}
+  - {days: 250}
+output: an_main_trendline_zhixing_slow.csv

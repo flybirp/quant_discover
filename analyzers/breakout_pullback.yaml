@@ -1,0 +1,16 @@
+name: breakout_pullback
+input: output/catch_breakout_pullback.csv
+horizons:
+- days: 10
+- days: 20
+- days: 60
+events:
+- name: recover_breakout_20d
+  ref_col: breakout_close
+  horizon:
+    days: 20
+  type: above
+output: an_breakout_pullback.csv
+ic:
+  signal: pullback_vr
+  horizon: ret_20d

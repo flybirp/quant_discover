@@ -1,0 +1,25 @@
+# 周线筑底跌破（"漏了"）：筑底 -> 首次跌破筑底低点
+# 相对旧版：剥离 ret_1w~4w / max_*_4w / recover_base，新增 base_price
+name: base_break
+detector:
+  type: base_break
+  params:
+    min_base_weeks: 2
+    support_tolerance_pct: 5.0
+    lookback_weeks: 12
+    decline_pct: 20.0
+    range_amplitude_pct: 40.0
+    range_low_margin_pct: 10.0
+    group_ratios: [0.95, 0.90, 0.85, 0.70]   # A(0~5%) B(5~10%) C(10~15%) D(15~30%)
+    group_names: [A, B, C, D]
+    vol_base_days: 20
+    vol_ratio_high: 1.2
+    vol_ratio_low: 0.8
+min_data_days: 180          # 旧版 lookback_weeks*5 + 120
+contract:
+  date: break_date
+  price: base_price         # 跌破日收盘价
+sort:
+  by: break_date
+  ascending: false
+output: catch_base_break.csv

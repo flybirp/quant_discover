@@ -1,0 +1,17 @@
+# 放量突破波段：长期下跌 + 放量 + 站上 zhixing_fast；止损/止盈离场
+name: volume
+detector:
+  type: volume
+  params:
+    lookback: 60
+    decline_pct: 20.0
+    vol_multi: 2.0
+    min_days: 1
+min_data_days: 90           # 旧版 lookback + 30
+contract:
+  date: entry_date
+  price: entry_price
+sort:
+  by: entry_date
+  ascending: false
+output: catch_volume.csv

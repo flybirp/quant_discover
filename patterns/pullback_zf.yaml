@@ -1,0 +1,16 @@
+# zfzs 金叉波段内回踩 zhixing_fast 事件（前 7 次）
+name: pullback_zf
+detector:
+  type: pullback_zfzs
+  params:
+    line: zf
+    band_pct: 3.0
+    max_pullbacks: 7
+min_data_days: 200
+contract:
+  date: pullback_date
+  price: base_price
+sort:
+  by: pullback_date
+  ascending: false
+output: catch_pullback_zf.csv

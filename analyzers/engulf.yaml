@@ -1,0 +1,10 @@
+name: engulf
+input: output/catch_engulf.csv
+horizons:
+- days: 5
+- days: 10
+- days: 20
+output: an_engulf.csv
+ic:
+  signal: engulf_pct
+  horizon: ret_20d

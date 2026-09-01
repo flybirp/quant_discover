@@ -1,0 +1,10 @@
+name: flat_zone
+input: output/catch_flat_zone.csv
+horizons:
+- days: 30
+- days: 90
+- days: 200
+output: an_flat_zone.csv
+ic:
+  signal: decline_pct
+  horizon: ret_200d

@@ -1,0 +1,8 @@
+# zfzs 金叉波段：入场日收盘基准，20/60/120 交易日收益
+name: zfzs
+input: output/catch_zfzs.csv
+horizons:
+  - {days: 20}
+  - {days: 60}
+  - {days: 120}
+output: an_zfzs.csv

@@ -1,0 +1,20 @@
+# 超长期宽幅震荡（400~600 天）+ 区间特征透传列
+# 相对旧版：废除突破三分类（direction/max_return/max_drawdown/final_return）
+name: long_consolidation
+detector:
+  type: long_consolidation
+  params:
+    window_min: 400
+    window_max: 600
+    window_step: 20
+    range_pct_max: 50.0
+    trend_limit_pct: 30.0
+    vol_converge: true
+min_data_days: 780          # 旧版 window_max + breakout_days + 60（保持股票集合一致）
+contract:
+  date: end_date
+  price: end_price          # 区间最后一天收盘价
+sort:
+  by: start_date
+  ascending: false
+output: catch_consol_scanner.csv

@@ -1,0 +1,16 @@
+name: fractal_bottom
+input: output/catch_fractal_bottom.csv
+horizons:
+- days: 5
+- days: 10
+- days: 20
+events:
+- name: break_low_20d
+  ref_col: fractal_low
+  horizon:
+    days: 20
+  type: below
+output: an_fractal_bottom.csv
+ic:
+  signal: depth
+  horizon: ret_20d

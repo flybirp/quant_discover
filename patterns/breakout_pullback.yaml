@@ -1,0 +1,18 @@
+# 放量突破后 10 根K内缩量回调至突破位（回调买点）
+name: breakout_pullback
+detector:
+  type: breakout_pullback
+  params:
+    lookback: 20
+    vol_multi: 2.0
+    max_pullback_days: 10
+    tol_pct: 2.0
+    pullback_vol_max: 1.0
+min_data_days: 80
+contract:
+  date: confirm_date
+  price: base_price
+sort:
+  by: confirm_date
+  ascending: false
+output: catch_breakout_pullback.csv

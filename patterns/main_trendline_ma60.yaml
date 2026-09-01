@@ -1,0 +1,14 @@
+# 主升浪（趋势线，MA60）：不连续 2 日跌破、涨幅 > 100%、> 200 天
+name: main_trendline_ma60
+detector:
+  type: main_trendline
+  params:
+    indicator: ma60
+min_data_days: 260          # 旧版 min_days_tl(60) + 200
+contract:
+  date: start_date
+  price: start_close
+sort:
+  by: return_pct
+  ascending: false
+output: catch_main_trendline_ma60.csv
