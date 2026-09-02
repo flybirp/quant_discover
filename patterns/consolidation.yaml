@@ -13,3 +13,6 @@ sort:
   by: end_date
   ascending: false
 output: catch_consolidation.csv
+enrich:
+  - rel_ret_120d
+enrich_index: zz1000

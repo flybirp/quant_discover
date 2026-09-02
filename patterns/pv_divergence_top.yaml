@@ -1,0 +1,19 @@
+# 顶背离：价格创收盘新高 + 对应量能萎缩（< 前峰 0.8 倍）
+name: pv_divergence_top
+detector:
+  type: pv_divergence
+  params:
+    direction: top
+    lookback: 60
+    min_sep: 10
+    vol_shrink_ratio: 0.8
+min_data_days: 120
+enrich:
+  - rel_ret_120d
+contract:
+  date: e2_date
+  price: base_price
+sort:
+  by: e2_date
+  ascending: false
+output: catch_pv_divergence_top.csv

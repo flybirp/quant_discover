@@ -1,0 +1,11 @@
+# 旗形突破：10/20/60 日收益
+name: flag_breakout
+input: output/catch_flag_breakout.csv
+horizons:
+  - {days: 10}
+  - {days: 20}
+  - {days: 60}
+ic:
+  signal: flag_range_pct
+  horizon: ret_20d
+output: an_flag_breakout.csv

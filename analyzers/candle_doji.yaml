@@ -1,0 +1,7 @@
+# 十字星：5/20 日收益
+name: candle_doji
+input: output/catch_candle_doji.csv
+horizons:
+  - {days: 5}
+  - {days: 20}
+output: an_candle_doji.csv

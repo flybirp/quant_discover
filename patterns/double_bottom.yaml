@@ -1,0 +1,20 @@
+# 双底（W 底）：等高双低点 + 颈线突破确认（支撑二次测试的成功结局）
+name: double_bottom
+detector:
+  type: double_bottom
+  params:
+    lookback: 60
+    tolerance_pct: 3.0
+    min_separation: 5
+    confirm_window: 30
+    min_prior_drop: 10.0
+min_data_days: 120
+enrich:
+  - rel_ret_120d
+contract:
+  date: break_date
+  price: base_price
+sort:
+  by: break_date
+  ascending: false
+output: catch_double_bottom.csv

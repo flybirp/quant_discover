@@ -1,0 +1,7 @@
+# 孕线：5/20 日收益
+name: candle_inside_bar
+input: output/catch_candle_inside_bar.csv
+horizons:
+  - {days: 5}
+  - {days: 20}
+output: an_candle_inside_bar.csv

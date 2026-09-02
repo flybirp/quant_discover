@@ -1,0 +1,16 @@
+# 威科夫 spring：10/20/60 日收益 + 20 日内是否再跌破支撑（失败判定）
+name: wyckoff_spring
+input: output/catch_wyckoff_spring.csv
+horizons:
+  - {days: 10}
+  - {days: 20}
+  - {days: 60}
+events:
+  - name: rebreak_20d
+    ref_col: support
+    horizon: {days: 20}
+    type: below
+ic:
+  signal: spring_depth_pct
+  horizon: ret_20d
+output: an_wyckoff_spring.csv

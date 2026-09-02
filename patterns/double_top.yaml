@@ -1,0 +1,20 @@
+# M 头（双顶）：等高双高点 + 跌破颈线确认（压力二次测试的成功结局）
+name: double_top
+detector:
+  type: double_top
+  params:
+    lookback: 60
+    tolerance_pct: 3.0
+    min_separation: 5
+    confirm_window: 30
+    min_prior_rise: 10.0
+min_data_days: 120
+enrich:
+  - rel_ret_120d
+contract:
+  date: break_date
+  price: base_price
+sort:
+  by: break_date
+  ascending: false
+output: catch_double_top.csv

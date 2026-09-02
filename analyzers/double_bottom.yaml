@@ -1,0 +1,16 @@
+# 双底：10/20/60 日收益 + 20 日内是否跌破双底低点（失败判定）
+name: double_bottom
+input: output/catch_double_bottom.csv
+horizons:
+  - {days: 10}
+  - {days: 20}
+  - {days: 60}
+events:
+  - name: break_bottom_20d
+    ref_col: pattern_low
+    horizon: {days: 20}
+    type: below
+ic:
+  signal: depth_pct
+  horizon: ret_20d
+output: an_double_bottom.csv

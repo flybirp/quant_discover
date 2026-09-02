@@ -12,3 +12,6 @@ sort:
   by: entry_date
   ascending: false
 output: catch_zfzs.csv
+enrich:
+  - rel_ret_120d
+enrich_index: zz1000

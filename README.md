@@ -28,17 +28,18 @@ quant_discover/
 ├── run.py                    # 统一入口: run.py catch / run.py analyze
 ├── indicator.py              # 技术指标库（MA/MACD/RSI/KDJ/BOLL/ATR/知行/量能/双底…）
 ├── core/                     # 波段捕捉引擎（catcher）
-│   ├── engine.py             #   扫描引擎: 加载/遍历/进度/去重/契约列/落盘
+│   ├── engine.py             #   扫描引擎: 加载/遍历/进度/去重/契约列/RPS enrich/落盘
 │   ├── resample.py           #   真自然周（ISO 周）聚合
-│   └── primitives.py         #   段检测器注册表（16 种检测器，5 类结构）
+│   ├── market.py             #   指数加载与相对强度（RPS 基础）
+│   └── primitives.py         #   段检测器注册表（25 种检测器，6 类结构）
 ├── analyze/                  # 统计分析引擎
 │   ├── stats.py              #   统计指标库（均值/中位/P15/P85/胜率/盈亏结构…）
 │   └── runner.py             #   forward 收益/自然周/cross_above 事件/分组/稳健性
-├── patterns/*.yaml           # 18 份形态配置（要捕哪种 wave 由配置决定）
-├── analyzers/*.yaml          # 统计分析配置（买点契约/horizons/分组/稳健性）
-├── topics/                   # 专题分析脚本（启动画像/横盘方向等跨形态统计）
+├── patterns/*.yaml           # 32 份形态配置（要捕哪种 wave 由配置决定）
+├── analyzers/*.yaml          # 统计分析配置（买点契约/horizons/分组/RankIC/稳健性）
+├── topics/                   # 专题分析脚本（启动画像/横盘方向/日历效应）
 ├── tools/verify.py           # 快照对比（重构语义等价验证）
-├── docs/                     # 发现文档（总纲 + 14 篇，全部可复现）
+├── docs/                     # 发现文档（总纲 + 22 篇 + 附录，全部可复现）
 ├── output/                   # 新引擎输出（catch_*.csv / an_*.csv）
 ├── _baseline/                # 旧版重跑基线（语义等价验证的对照）
 ├── _deprecated/              # 旧版脚本存档（已被 core+analyze 完全替代）

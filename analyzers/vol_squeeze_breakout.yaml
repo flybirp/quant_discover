@@ -1,0 +1,11 @@
+# 波动率挤压突破：10/20/60 日收益
+name: vol_squeeze_breakout
+input: output/catch_vol_squeeze_breakout.csv
+horizons:
+  - {days: 10}
+  - {days: 20}
+  - {days: 60}
+ic:
+  signal: bb_width_min
+  horizon: ret_20d
+output: an_vol_squeeze_breakout.csv

@@ -10,6 +10,7 @@
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from core.primitives import get_primitive
@@ -58,6 +59,14 @@ def run_pattern(config: dict, data_dir: Path | None = None,
     data_dir = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
     min_days = int(config.get("min_data_days", 200))
 
+    # 相对强度 enrich：声明列名（如 rel_ret_120d），扫描时逐股计算并
+    # 按 (code, 契约日期) 附加到输出，检测器无需感知
+    enrich_cols = config.get("enrich") or []
+    if isinstance(enrich_cols, str):
+        enrich_cols = [enrich_cols]
+    enrich_index = config.get("enrich_index", "zz1000")
+    rel_lookup: dict[tuple, float] = {}
+
     files = sorted(data_dir.glob("*.csv"))
     total = len(files)
     print("=" * 72)
@@ -74,6 +83,14 @@ def run_pattern(config: dict, data_dir: Path | None = None,
         if df is None:
             skipped += 1
             continue
+        if enrich_cols:
+            from core.market import relative_return
+            for col in enrich_cols:
+                period = int(col.replace("rel_ret_", "").rstrip("d"))
+                rel = relative_return(df, period=period, index_name=enrich_index)
+                for ds, v in zip(df["date"].dt.strftime("%Y-%m-%d").values, rel.values):
+                    if not pd.isna(v):
+                        rel_lookup[(f.stem, ds)] = float(v)
         results.extend(func(df, f.stem, params))
         if scanned % 500 == 0:
             print(f"  进度: {scanned}/{total} | 已发现 {len(results)} 个形态")
@@ -98,6 +115,13 @@ def run_pattern(config: dict, data_dir: Path | None = None,
             out_df["base_date"] = out_df[contract["date"]]
         if "price" in contract:
             out_df["base_price"] = out_df[contract["price"]]
+
+    # 附加相对强度列（按 code + 契约日期查表）
+    if enrich_cols and len(out_df):
+        date_col = "base_date" if "base_date" in out_df.columns else contract["date"]
+        for col in enrich_cols:
+            out_df[col] = [rel_lookup.get((c, d), np.nan)
+                           for c, d in zip(out_df["code"], out_df[date_col])]
 
     sort_cfg = config.get("sort")
     if sort_cfg and len(out_df) and sort_cfg.get("by") in out_df.columns:

@@ -214,7 +214,20 @@
 
 ---
 
-## 三、各形态 RankIC 信号列映射（复刻必读）
+## 三、相对强度（RPS）口径
+
+| 用词 | 精确定义 |
+|------|---------|
+| rel_ret_120d | `(个股120日收益 − 中证1000同期收益)`，百分比；指数按日期 reindex + ffill 对齐 |
+| RPS 截面分位 | **按 base_date 当日**全市场样本对 rel_ret_120d 降序排名百分位（0~99）——混合全期的排名会被年度效应污染，必须逐日截面 |
+| enrich 机制 | pattern YAML 声明 `enrich: [rel_ret_120d]` + `enrich_index: zz1000`；engine 逐股计算并按 (code, 契约日期) 附加到输出，检测器无感知 |
+| 指数数据 | `~/Documents/mainland_index_data_2014/`（cyb/hs300/kcb/sh/sz/zz1000） |
+
+已接入 enrich 的 pattern：base_break、zfzs、spike_top、consolidation
+（结论见 `discover_15`：RPS 对超跌类形态冗余，仅横盘形态的
+低位过滤有效）。
+
+## 四、各形态 RankIC 信号列映射（复刻必读）
 
 RankIC = `spearman(信号列, 主 horizon 收益)`，按形态：
 
@@ -234,6 +247,23 @@ RankIC = `spearman(信号列, 主 horizon 收益)`，按形态：
 | pullback_zf / _zs | dist_pct（距线） | ret_20d | +0.032 / +0.020 | 弱/无效 |
 | oversold | decline_pct | ret_90d | -0.005 | 无效：深跌只分"反弹与否"，不分"反弹多少" |
 | zfzs / volume | —（二元事件，无连续信号） | — | N/A | 用胜率相对基准增量（+4.6pct / -2.8pct） |
+
+### 扩展系列（16~21）信号列
+
+| 形态 | 信号列 | 主 horizon | RankIC | 备注 |
+|------|--------|-----------|--------|------|
+| double_bottom / double_top | depth_pct（形态深度） | ret_20d | -0.016 / **-0.071** | 双底无效；M 头深度是唯一有效维度 |
+| gap_up / gap_down | gap_pct（缺口大小） | ret_20d | +0.041 / -0.016 | 缺口大小弱有效；核心分野在回补事件 |
+| pv_divergence_top / _bottom | vol_ratio_peaks（峰对量比） | ret_20d | -0.022 / +0.008 | 萎缩"是否"有效、"多深"无效 |
+| flag_breakout | flag_range_pct | ret_20d | -0.042 | 形态稀缺（n=1,939） |
+| cup_handle | cup_depth_pct | ret_20d | **-0.096** | 杯越深越差（前高阻力区） |
+| vol_squeeze_breakout | bb_width_min | ret_20d | — | 有效维度是挤压时长（40 天+） |
+| candle_*（四种） | —（按背景分组） | — | ≈0 | 形状无信息（discover_20） |
+| wyckoff_spring | spring_depth_pct | ret_20d | **+0.066** | spring 越深越强 |
+
+**新增事件口径**：gap 回补（gap_filled_20d：收盘回到缺口对沿）、
+双底破底（break_bottom_20d）、spring 再跌破（rebreak_20d——注意
+支撑就在 base 下方 1~2%，该事件对浅回踩过敏，见 discover_21 口径警告）。
 
 ## 四、背景基准率（所有胜率/下跌率的对照基线）
 

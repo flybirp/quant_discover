@@ -988,6 +988,766 @@ def detect_long_consolidation(df: pd.DataFrame, code: str, p: dict) -> list[dict
     return zones
 
 
+# ============================================================
+# 双底 / M 头（支撑与压力的二次测试，base_break 的镜像形态）
+# ============================================================
+
+# ============================================================
+# 跳空缺口（向上/向下，回补事件交给 analyze）
+# ============================================================
+
+@register("gap")
+def detect_gap(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """跳空缺口：当日价格区间与前一日完全脱离（留真空）。
+
+    - 向上：low[i] > high[i-1]；向下：high[i] < low[i-1]；
+    - gap_pct ≥ min_gap（默认 2.0%）才记录；
+    - gap_base = 缺口前一日对侧极值（向上缺口=前日 high，向下=前日 low），
+      作为 analyze 回补判定的阈值列（cross_above/below）；
+    - base = 缺口日收盘。
+    """
+    direction = p.get("direction", "up")
+    min_gap = float(p.get("min_gap", 2.0))
+
+    close = df["close"].values.astype(float)
+    open_ = df["open"].values.astype(float)
+    high = df["high"].values.astype(float)
+    low = df["low"].values.astype(float)
+    volume = df["volume"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+
+    vol_ma20 = sma(df["volume"], 20).values
+
+    records = []
+    for i in range(1, n):
+        if direction == "up":
+            if not low[i] > high[i - 1]:
+                continue
+            gap_pct = (low[i] / high[i - 1] - 1) * 100
+            gap_base = high[i - 1]
+        else:
+            if not high[i] < low[i - 1]:
+                continue
+            gap_pct = (1 - high[i] / low[i - 1]) * 100
+            gap_base = low[i - 1]
+        if gap_pct < min_gap:
+            continue
+        if np.isnan(vol_ma20[i]) or vol_ma20[i] <= 0:
+            continue
+        vr = volume[i] / vol_ma20[i]
+        ref = i - 20
+        prior_move = (close[i] / close[ref] - 1) * 100 if ref >= 0 and close[ref] > 0 else np.nan
+        records.append({
+            "code": code,
+            "gap_date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+            "gap_pct": round(gap_pct, 2),
+            "gap_bin": ("2-3%" if gap_pct < 3 else "3-5%" if gap_pct < 5 else "≥5%"),
+            "gap_base": round(float(gap_base), 2),
+            "vol_ratio": round(vr, 2),
+            "vol_bin": ("≥2" if vr >= 2 else "1-2" if vr >= 1 else "<1"),
+            "prior_move_20d": round(float(prior_move), 1) if not np.isnan(prior_move) else np.nan,
+            "move_bin": ("强势中(≥+10%)" if (not np.isnan(prior_move) and prior_move >= 10) else
+                         "上涨中(+0~10%)" if (not np.isnan(prior_move) and prior_move >= 0) else
+                         "下跌中(<0)"),
+            "base_price": round(float(close[i]), 2),
+        })
+    return records
+
+
+# ============================================================
+# 量价背离（顶背离: 价格新高 + 量能萎缩; 底背离对称）
+# ============================================================
+
+@register("pv_divergence")
+def detect_pv_divergence(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """量价背离（峰对口径）。
+
+    顶背离: j2 为局部高点且收盘创 lookback 日新高，前一个局部高点 j1
+      （间隔 ≥ min_sep）收盘更低（价格更高），但 j2 量 < j1 量 ×
+      vol_shrink_ratio（默认 0.8，量能萎缩）。
+    底背离对称: 收盘创新低 + 量能萎缩（卖压衰竭）。
+    base = j2 日收盘。
+    """
+    direction = p.get("direction", "top")     # top: 顶背离 / bottom: 底背离
+    lookback = int(p.get("lookback", 60))
+    min_sep = int(p.get("min_sep", 10))
+    vol_shrink_ratio = float(p.get("vol_shrink_ratio", 0.8))
+
+    close = df["close"].values.astype(float)
+    high = df["high"].values.astype(float)
+    low = df["low"].values.astype(float)
+    volume = df["volume"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+
+    if direction == "top":
+        ext = _local_extrema(high, "high")
+    else:
+        ext = _local_extrema(low, "low")
+
+    records = []
+    used_until = -1
+    for jj in range(1, len(ext)):
+        j2 = ext[jj]
+        if j2 <= used_until:
+            continue
+        # 趋势性极值：收盘创 lookback 日新高/新低
+        if direction == "top":
+            if not close[j2] >= np.max(close[max(0, j2 - lookback):j2]):
+                continue
+        else:
+            if not close[j2] <= np.min(close[max(0, j2 - lookback):j2]):
+                continue
+        # 向前找前一个局部极值（间隔足够）
+        j1 = None
+        for ii in range(jj - 1, -1, -1):
+            cand = ext[ii]
+            if j2 - cand < min_sep:
+                continue
+            j1 = cand
+            break
+        if j1 is None:
+            continue
+        # 价格条件 + 量能背离
+        if direction == "top":
+            price_ok = close[j2] > close[j1]
+        else:
+            price_ok = close[j2] < close[j1]
+        if not price_ok:
+            continue
+        if volume[j1] <= 0:
+            continue
+        vol_ratio_peaks = volume[j2] / volume[j1]
+        if vol_ratio_peaks >= vol_shrink_ratio:
+            continue
+        # 两峰间的回调/反弹深度
+        mid = close[j1 + 1:j2]
+        if len(mid) == 0:
+            continue
+        if direction == "top":
+            mid_extreme = float(np.min(mid))
+            mid_depth = (close[j1] - mid_extreme) / close[j1] * 100
+        else:
+            mid_extreme = float(np.max(mid))
+            mid_depth = (mid_extreme - close[j1]) / close[j1] * 100
+        price_diff = (close[j2] / close[j1] - 1) * 100
+        records.append({
+            "code": code,
+            "e1_date": pd.Timestamp(dates[j1]).strftime("%Y-%m-%d"),
+            "e2_date": pd.Timestamp(dates[j2]).strftime("%Y-%m-%d"),
+            "price_diff_pct": round(price_diff, 2),
+            "vol_ratio_peaks": round(vol_ratio_peaks, 3),
+            "vol_bin": ("<0.5" if vol_ratio_peaks < 0.5 else
+                        "0.5-0.65" if vol_ratio_peaks < 0.65 else "0.65-0.8"),
+            "separation_days": j2 - j1,
+            "mid_depth_pct": round(mid_depth, 2),
+            "mid_bin": ("<10%" if mid_depth < 10 else "10-20%" if mid_depth < 20 else "≥20%"),
+            "base_price": round(float(close[j2]), 2),
+        })
+        used_until = j2
+    return records
+
+
+# ============================================================
+# 中继形态三件套（旗形收敛 / 杯柄 / 波动率挤压突破）
+# ============================================================
+
+@register("flag_breakout")
+def detect_flag_breakout(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """旗形/三角形收敛整理突破。
+
+    - 旗杆：局部高点前 pole_window（20）日收盘涨幅 ≥ pole_gain（20%）；
+    - 旗面：高点后 10~40 天内收盘再创新高（触发），期间振幅
+      (max high - min low)/均值 ≤ range_max（15%），且后半段振幅 <
+      前半段 × converge_ratio（0.7，收敛）；
+    - base = 突破日收盘。
+    """
+    pole_window = int(p.get("pole_window", 20))
+    pole_gain = float(p.get("pole_gain", 20.0))
+    min_flag = int(p.get("min_flag", 10))
+    max_flag = int(p.get("max_flag", 40))
+    range_max = float(p.get("range_max", 15.0))
+    converge_ratio = float(p.get("converge_ratio", 0.7))
+
+    close = df["close"].values.astype(float)
+    high = df["high"].values.astype(float)
+    low = df["low"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+
+    records = []
+    used_until = -1
+    tops = _local_extrema(high, "high")
+    for top in tops:
+        if top <= used_until:
+            continue
+        ref = top - pole_window
+        if ref < 0 or close[ref] <= 0:
+            continue
+        if (close[top] / close[ref] - 1) * 100 < pole_gain:
+            continue
+        # 旗面内找触发（收盘突破旗杆顶）
+        trig = None
+        for k in range(top + 1, min(top + max_flag + 1, n)):
+            if close[k] > close[top]:
+                trig = k
+                break
+        if trig is None or trig - top < min_flag:
+            continue
+        fh = high[top + 1:trig]
+        fl = low[top + 1:trig]
+        fc = close[top + 1:trig]
+        if len(fh) < 4 or fc.mean() <= 0:
+            continue
+        amp_all = (fh.max() - fl.min()) / fc.mean() * 100
+        if amp_all > range_max:
+            continue
+        half = len(fh) // 2
+        amp_1st = (fh[:half].max() - fl[:half].min()) / fc[:half].mean() * 100 if half else amp_all
+        amp_2nd = (fh[half:].max() - fl[half:].min()) / fc[half:].mean() * 100 if half else amp_all
+        if amp_2nd > amp_1st * converge_ratio:
+            continue
+        records.append({
+            "code": code,
+            "pole_top_date": pd.Timestamp(dates[top]).strftime("%Y-%m-%d"),
+            "pole_gain_pct": round((close[top] / close[ref] - 1) * 100, 1),
+            "gain_bin": ("20-40%" if (close[top]/close[ref]-1)*100 < 40 else "≥40%"),
+            "flag_days": trig - top,
+            "flag_days_bin": ("10-20天" if trig - top <= 20 else "21-40天"),
+            "flag_range_pct": round(amp_all, 2),
+            "range_bin": ("<8%" if amp_all < 8 else "8-15%"),
+            "convergence": round(amp_2nd / (amp_1st + 1e-10), 2),
+            "break_date": pd.Timestamp(dates[trig]).strftime("%Y-%m-%d"),
+            "base_price": round(float(close[trig]), 2),
+        })
+        used_until = trig
+    return records
+
+
+@register("cup_handle")
+def detect_cup_handle(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """杯柄形（简化口径）：跌出杯 → 圆弧回升至杯沿 → 浅柄 → 破杯沿。
+
+    - 杯：局部低点前 cup_window（30~90 天）内最高收盘 rim，
+      跌幅 (rim-cup_low)/rim ∈ [15%, 50%]；
+    - 回升：低点后 90 天内收盘 ≥ rim×0.97；
+    - 柄：回升后 3~20 天内最低收盘 ≥ rim×0.88（回调不深）；
+    - 触发：柄期内收盘首次 > rim；base = 触发日收盘。
+    """
+    cup_min = int(p.get("cup_min", 30))
+    cup_max = int(p.get("cup_max", 90))
+    depth_min = float(p.get("depth_min", 15.0))
+    depth_max = float(p.get("depth_max", 50.0))
+
+    close = df["close"].values.astype(float)
+    low = df["low"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+
+    records = []
+    used_until = -1
+    bots = _local_extrema(low, "low")
+    for bot in bots:
+        if bot <= used_until:
+            continue
+        win_lo = max(0, bot - cup_max)
+        seg = close[win_lo:bot]
+        if len(seg) < cup_min:
+            continue
+        rim = float(np.max(seg))
+        rim_idx = win_lo + int(np.argmax(seg))
+        if rim <= 0:
+            continue
+        depth = (rim - close[bot]) / rim * 100
+        if not (depth_min <= depth <= depth_max):
+            continue
+        # 回升至杯沿
+        r_day = None
+        for k in range(bot + 1, min(bot + cup_max + 1, n)):
+            if close[k] >= rim * 0.97:
+                r_day = k
+                break
+        if r_day is None:
+            continue
+        # 柄 + 触发
+        trig = None
+        handle_low = None
+        for k in range(r_day + 1, min(r_day + 21, n)):
+            if close[k] > rim:
+                trig = k
+                break
+            if close[k] < rim * 0.88:
+                break  # 柄太深，放弃
+        if trig is None:
+            continue
+        handle_seg = close[r_day + 1:trig]
+        handle_depth = (rim - float(np.min(handle_seg))) / rim * 100 if len(handle_seg) else 0.0
+        records.append({
+            "code": code,
+            "rim_date": pd.Timestamp(dates[rim_idx]).strftime("%Y-%m-%d"),
+            "cup_low_date": pd.Timestamp(dates[bot]).strftime("%Y-%m-%d"),
+            "cup_depth_pct": round(depth, 1),
+            "depth_bin": ("15-30%" if depth < 30 else "30-50%"),
+            "cup_days": bot - rim_idx,
+            "recover_days": r_day - bot,
+            "handle_depth_pct": round(handle_depth, 1),
+            "handle_bin": ("<5%" if handle_depth < 5 else "5-12%"),
+            "break_date": pd.Timestamp(dates[trig]).strftime("%Y-%m-%d"),
+            "base_price": round(float(close[trig]), 2),
+        })
+        used_until = trig
+    return records
+
+
+@register("vol_squeeze_breakout")
+def detect_vol_squeeze_breakout(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """波动率挤压突破：布林带宽处于近 120 日低分位后收盘创新高。
+
+    - squeeze：bb_width(20,2) 在近 120 日分位 < squeeze_pct（20），
+      连续 ≥ min_squeeze（10）天；
+    - 触发：squeeze 后收盘 > squeeze 期间最高价；base = 触发日收盘。
+    """
+    squeeze_pct = float(p.get("squeeze_pct", 20.0))
+    min_squeeze = int(p.get("min_squeeze", 10))
+
+    close = df["close"].values.astype(float)
+    high = df["high"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+
+    bb = bollinger(pd.Series(close), 20, 2.0)
+    bb_width = ((bb["upper"].values - bb["lower"].values) / bb["mid"].values * 100)
+    # 滚动分位（近似：与近120日比较）
+    rank_ok = np.full(n, False)
+    for i in range(140, n):
+        if np.isnan(bb_width[i]):
+            continue
+        w = bb_width[i - 120:i + 1]
+        w = w[~np.isnan(w)]
+        if len(w) >= 60 and (np.sum(w <= bb_width[i]) / len(w) * 100) < squeeze_pct:
+            rank_ok[i] = True
+
+    records = []
+    i = 140
+    while i < n:
+        if not rank_ok[i]:
+            i += 1
+            continue
+        # 扩展 squeeze 段
+        s = i
+        while i < n and rank_ok[i]:
+            i += 1
+        e = i - 1
+        if e - s + 1 < min_squeeze:
+            continue
+        seg_high = float(np.max(high[s:e + 1]))
+        # 触发：squeeze 结束后 30 天内收盘突破 squeeze 高点
+        trig = None
+        for k in range(e + 1, min(e + 31, n)):
+            if close[k] > seg_high:
+                trig = k
+                break
+        if trig is None:
+            continue
+        records.append({
+            "code": code,
+            "squeeze_start": pd.Timestamp(dates[s]).strftime("%Y-%m-%d"),
+            "squeeze_end": pd.Timestamp(dates[e]).strftime("%Y-%m-%d"),
+            "squeeze_days": e - s + 1,
+            "days_bin": ("10-20天" if e - s + 1 <= 20 else "21-40天" if e - s + 1 <= 40 else "40天+"),
+            "bb_width_min": round(float(np.nanmin(bb_width[s:e + 1])), 2),
+            "break_date": pd.Timestamp(dates[trig]).strftime("%Y-%m-%d"),
+            "base_price": round(float(close[trig]), 2),
+        })
+        i = trig + 1
+    return records
+
+
+# ============================================================
+# 微观 K 线组合（十字星 / 孕线 / 红三兵 / 黑三鸦）
+# ============================================================
+
+@register("candle_combo")
+def detect_candle_combo(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """微观 K 线组合（shape 参数化四种）。
+
+    - doji（十字星）: 实体/振幅 ≤ 0.1 且振幅 > 0；
+    - inside_bar（孕线）: 当日 high < 昨日 high 且 low > 昨日 low；
+    - three_soldiers（红三兵）: 连续 3 根阳线收盘递增且实体各 ≥ min_body；
+    - three_crows（黑三鸦）: 对称。
+    base = 信号日（组合最后一根 K）收盘。
+    """
+    shape = p.get("shape", "doji")
+    min_body = float(p.get("min_body", 1.0))
+
+    close = df["close"].values.astype(float)
+    open_ = df["open"].values.astype(float)
+    high = df["high"].values.astype(float)
+    low = df["low"].values.astype(float)
+    volume = df["volume"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+
+    vol_ma20 = sma(df["volume"], 20).values
+    records = []
+
+    def _emit(i, extra=None):
+        if np.isnan(vol_ma20[i]) or vol_ma20[i] <= 0:
+            return
+        vr = volume[i] / vol_ma20[i]
+        ref = i - 20
+        prior_move = (close[i] / close[ref] - 1) * 100 if ref >= 0 and close[ref] > 0 else np.nan
+        rec = {
+            "code": code,
+            "signal_date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+            "vol_ratio": round(vr, 2),
+            "vol_bin": ("≥2" if vr >= 2 else "1-2" if vr >= 1 else "<1"),
+            "prior_move_20d": round(float(prior_move), 1) if not np.isnan(prior_move) else np.nan,
+            "move_bin": ("强势中(≥10%)" if (not np.isnan(prior_move) and prior_move >= 10) else
+                         "上涨中(0~10%)" if (not np.isnan(prior_move) and prior_move >= 0) else "下跌中(<0)"),
+            "base_price": round(float(close[i]), 2),
+        }
+        if extra:
+            rec.update(extra)
+        records.append(rec)
+
+    for i in range(25, n):
+        rng = high[i] - low[i]
+        if rng <= 0:
+            continue
+        body = abs(close[i] - open_[i])
+        if shape == "doji":
+            if body / rng <= 0.1:
+                _emit(i, {"body_ratio": round(body / rng, 3)})
+        elif shape == "inside_bar":
+            if i >= 1 and high[i] < high[i - 1] and low[i] > low[i - 1]:
+                outer_rng = (high[i - 1] - low[i - 1]) / low[i - 1] * 100 if low[i - 1] > 0 else 0
+                _emit(i, {"outer_range_pct": round(outer_rng, 2)})
+        elif shape == "three_soldiers":
+            if i >= 2:
+                ok = True
+                for k in (i - 2, i - 1, i):
+                    if not (close[k] > open_[k] and open_[k] > 0
+                            and (close[k] - open_[k]) / open_[k] * 100 >= min_body):
+                        ok = False
+                        break
+                if ok and close[i] > close[i - 1] > close[i - 2]:
+                    _emit(i)
+        elif shape == "three_crows":
+            if i >= 2:
+                ok = True
+                for k in (i - 2, i - 1, i):
+                    if not (close[k] < open_[k] and close[k] > 0
+                            and (open_[k] - close[k]) / close[k] * 100 >= min_body):
+                        ok = False
+                        break
+                if ok and close[i] < close[i - 1] < close[i - 2]:
+                    _emit(i)
+    return records
+
+
+# ============================================================
+# 威科夫吸筹 spring（横盘支撑假跌破后收回）
+# ============================================================
+
+@register("wyckoff_spring")
+def detect_wyckoff_spring(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """威科夫 spring：横盘区间的支撑被假跌破后快速收回。
+
+    - 横盘语境：过去 range_days（60）天振幅 ≤ max_range（25%）；
+    - 支撑 = 该窗口最低 low；
+    - spring：low 跌破支撑 ≥ spring_tol（1%）后，≤ recover_days（3）
+      天内收盘收回支撑上方（当日收回 = 长下影形态）；
+    - base = 收回日收盘；support 为阈值列（再跌破判定）。
+    """
+    range_days = int(p.get("range_days", 60))
+    max_range = float(p.get("max_range", 25.0))
+    spring_tol = float(p.get("spring_tol", 1.0))
+    recover_days = int(p.get("recover_days", 3))
+
+    close = df["close"].values.astype(float)
+    high = df["high"].values.astype(float)
+    low = df["low"].values.astype(float)
+    volume = df["volume"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+
+    vol_ma20 = sma(df["volume"], 20).values
+
+    records = []
+    i = range_days + 5
+    while i < n - recover_days:
+        w0, w1 = i - range_days, i
+        support = float(np.min(low[w0:w1]))
+        if support <= 0:
+            i += 1
+            continue
+        # 横盘语境
+        w_high = float(np.max(high[w0:w1]))
+        w_mean = float(np.mean(close[w0:w1]))
+        if w_mean <= 0 or (w_high - support) / w_mean * 100 > max_range:
+            i += 1
+            continue
+        # spring 跌破
+        if low[i] > support * (1 - spring_tol / 100):
+            i += 1
+            continue
+        spring_depth = (support - low[i]) / support * 100
+        # 收回（当日或延迟）
+        trig = None
+        if close[i] > support:
+            trig = i
+        else:
+            for k in range(i + 1, min(i + recover_days + 1, n)):
+                if close[k] > support:
+                    trig = k
+                    break
+        if trig is None:
+            i += 1
+            continue
+        vr = volume[i] / vol_ma20[i] if vol_ma20[i] and not np.isnan(vol_ma20[i]) else np.nan
+        records.append({
+            "code": code,
+            "spring_date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+            "spring_depth_pct": round(spring_depth, 2),
+            "depth_bin": ("<2%" if spring_depth < 2 else "2-5%" if spring_depth < 5 else "≥5%"),
+            "recover_days": trig - i,
+            "recover_bin": ("当日收回" if trig == i else f"{trig - i}日收回"),
+            "spring_vol_ratio": round(float(vr), 2) if not np.isnan(vr) else np.nan,
+            "vol_bin": ("≥1.5(放量测试)" if (not np.isnan(vr) and vr >= 1.5) else "<1.5"),
+            "range_amp_pct": round((w_high - support) / w_mean * 100, 1),
+            "support": round(support, 2),
+            "break_date": pd.Timestamp(dates[trig]).strftime("%Y-%m-%d"),
+            "base_price": round(float(close[trig]), 2),
+        })
+        i = trig + 1
+    return records
+
+
+def _local_extrema(arr: np.ndarray, mode: str) -> list[int]:
+    """局部极值索引：比前后各 1 天高（top）或低（bottom）。"""
+    out = []
+    for j in range(1, len(arr) - 1):
+        if mode == "low":
+            if arr[j] <= arr[j - 1] and arr[j] <= arr[j + 1]:
+                out.append(j)
+        else:
+            if arr[j] >= arr[j - 1] and arr[j] >= arr[j + 1]:
+                out.append(j)
+    return out
+
+
+def _find_double_pattern(close: np.ndarray, extrema: list[int], vals: np.ndarray,
+                         tolerance_pct: float, min_separation: int,
+                         confirm_window: int, is_bottom: bool):
+    """在极值序列中找最近的一对"双底/双顶"并返回（j1, j2, 颈线索引范围）。
+
+    双底: 两低点差 ≤ tolerance、间隔 ≥ min_separation、中间 close 高于较高低点。
+    双顶: 对称（中间 close 低于较低高点）。
+    """
+    n_pairs = len(extrema)
+    for k in range(n_pairs - 1, 0, -1):
+        for m in range(k - 1, -1, -1):
+            j2, j1 = extrema[k], extrema[m]
+            if j2 - j1 < min_separation:
+                continue
+            v1, v2 = vals[j1], vals[j2]
+            ref = max(v1, v2) if is_bottom else min(v1, v2)
+            if ref <= 0:
+                continue
+            if abs(v1 - v2) / ref * 100 > tolerance_pct:
+                continue
+            mid = close[j1 + 1:j2]
+            if len(mid) == 0:
+                continue
+            if is_bottom:
+                if not (mid > ref).any():
+                    continue
+            else:
+                if not (mid < ref).any():
+                    continue
+            return j1, j2
+    return None, None
+
+
+@register("double_bottom")
+def detect_double_bottom(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """双底（W 底）：两个等高低点 + 中间反弹 + 收盘上破颈线确认。
+
+    - 两低点差 ≤ tolerance_pct（默认 3%），间隔 ≥ min_separation（默认 5 天），
+      两点均落在 lookback（默认 60 天）窗口内，取最近的一对；
+    - 颈线 = 两低点间最高收盘；确认 = 第二低点后 confirm_window 天内
+      收盘 > 颈线（超时放弃该配对）；
+    - 形态前 30 天跌幅 ≥ min_prior_drop 才记录（与 base_break 的
+      "下跌后首底"位置条件呼应）；
+    - base = 颈线突破日收盘；pattern_low = 两低点较低者（破位判定阈值）。
+    """
+    lookback = int(p.get("lookback", 60))
+    tolerance_pct = float(p.get("tolerance_pct", 3.0))
+    min_separation = int(p.get("min_separation", 5))
+    confirm_window = int(p.get("confirm_window", 30))
+    min_prior_drop = float(p.get("min_prior_drop", 10.0))
+
+    close = df["close"].values.astype(float)
+    low = df["low"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+    ext = _local_extrema(low, "low")
+
+    records = []
+    used_until = -1
+    for jj in range(1, len(ext)):
+        j2 = ext[jj]
+        if j2 <= used_until:
+            continue
+        # 向左找最近的合格 j1（最近的一对优先）
+        j1 = None
+        for ii in range(jj - 1, -1, -1):
+            cand = ext[ii]
+            if j2 - cand > lookback:
+                break
+            if j2 - cand < min_separation:
+                continue
+            v1, v2 = low[cand], low[j2]
+            ref = max(v1, v2)
+            if ref <= 0 or abs(v1 - v2) / ref * 100 > tolerance_pct:
+                continue
+            mid = close[cand + 1:j2]
+            if len(mid) and (mid > ref).any():
+                j1 = cand
+                break
+        if j1 is None:
+            continue
+        neckline = float(np.max(close[j1 + 1:j2]))
+        if neckline <= 0:
+            used_until = j2
+            continue
+        prior_ref = j1 - 30
+        if prior_ref < 0 or close[prior_ref] <= 0:
+            used_until = j2
+            continue
+        prior_drop = (close[j1] / close[prior_ref] - 1) * 100
+        if prior_drop > -min_prior_drop:
+            used_until = j2
+            continue
+        trig = None
+        for k in range(j2 + 1, min(j2 + confirm_window + 1, n)):
+            if close[k] > neckline:
+                trig = k
+                break
+        if trig is None:
+            used_until = j2
+            continue
+        b1, b2 = low[j1], low[j2]
+        pattern_low = min(b1, b2)
+        depth = (neckline - pattern_low) / neckline * 100
+        records.append({
+            "code": code,
+            "b1_date": pd.Timestamp(dates[j1]).strftime("%Y-%m-%d"),
+            "b2_date": pd.Timestamp(dates[j2]).strftime("%Y-%m-%d"),
+            "b1_low": round(float(b1), 2),
+            "b2_low": round(float(b2), 2),
+            "separation_days": j2 - j1,
+            "neckline": round(neckline, 2),
+            "depth_pct": round(depth, 2),
+            "depth_bin": ("<5%" if depth < 5 else "5-15%" if depth < 15 else "≥15%"),
+            "prior_drop_pct": round(prior_drop, 1),
+            "drop_bin": ("-30%以内" if prior_drop > -30 else "-30~-50%" if prior_drop > -50 else "≥-50%"),
+            "pattern_low": round(float(pattern_low), 2),
+            "break_date": pd.Timestamp(dates[trig]).strftime("%Y-%m-%d"),
+            "base_price": round(float(close[trig]), 2),
+        })
+        used_until = trig
+    return records
+
+
+@register("double_top")
+def detect_double_top(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """M 头（双顶）：两个等高的高点 + 中间回调 + 收盘跌破颈线确认。
+
+    对称于双底：颈线 = 两高点间最低收盘；确认 = 第二高点后
+    confirm_window 天内收盘 < 颈线；形态前 30 天涨幅 ≥ min_prior_rise
+    才记录；base = 跌破颈线日收盘。
+    """
+    lookback = int(p.get("lookback", 60))
+    tolerance_pct = float(p.get("tolerance_pct", 3.0))
+    min_separation = int(p.get("min_separation", 5))
+    confirm_window = int(p.get("confirm_window", 30))
+    min_prior_rise = float(p.get("min_prior_rise", 10.0))
+
+    close = df["close"].values.astype(float)
+    high = df["high"].values.astype(float)
+    dates = df["date"].values
+    n = len(close)
+    ext = _local_extrema(high, "high")
+
+    records = []
+    used_until = -1
+    for jj in range(1, len(ext)):
+        j2 = ext[jj]
+        if j2 <= used_until:
+            continue
+        j1 = None
+        for ii in range(jj - 1, -1, -1):
+            cand = ext[ii]
+            if j2 - cand > lookback:
+                break
+            if j2 - cand < min_separation:
+                continue
+            v1, v2 = high[cand], high[j2]
+            ref = min(v1, v2)
+            if ref <= 0 or abs(v1 - v2) / ref * 100 > tolerance_pct:
+                continue
+            mid = close[cand + 1:j2]
+            if len(mid) and (mid < ref).any():
+                j1 = cand
+                break
+        if j1 is None:
+            continue
+        neckline = float(np.min(close[j1 + 1:j2]))
+        if neckline <= 0:
+            used_until = j2
+            continue
+        prior_ref = j1 - 30
+        if prior_ref < 0 or close[prior_ref] <= 0:
+            used_until = j2
+            continue
+        prior_rise = (close[j1] / close[prior_ref] - 1) * 100
+        if prior_rise < min_prior_rise:
+            used_until = j2
+            continue
+        trig = None
+        for k in range(j2 + 1, min(j2 + confirm_window + 1, n)):
+            if close[k] < neckline:
+                trig = k
+                break
+        if trig is None:
+            used_until = j2
+            continue
+        t1, t2 = high[j1], high[j2]
+        pattern_high = max(t1, t2)
+        depth = (pattern_high - neckline) / pattern_high * 100
+        records.append({
+            "code": code,
+            "t1_date": pd.Timestamp(dates[j1]).strftime("%Y-%m-%d"),
+            "t2_date": pd.Timestamp(dates[j2]).strftime("%Y-%m-%d"),
+            "t1_high": round(float(t1), 2),
+            "t2_high": round(float(t2), 2),
+            "separation_days": j2 - j1,
+            "neckline": round(neckline, 2),
+            "depth_pct": round(depth, 2),
+            "depth_bin": ("<5%" if depth < 5 else "5-15%" if depth < 15 else "≥15%"),
+            "prior_rise_pct": round(prior_rise, 1),
+            "rise_bin": ("30%以内" if prior_rise < 30 else "30~60%" if prior_rise < 60 else "≥60%"),
+            "pattern_high": round(float(pattern_high), 2),
+            "break_date": pd.Timestamp(dates[trig]).strftime("%Y-%m-%d"),
+            "base_price": round(float(close[trig]), 2),
+        })
+        used_until = trig
+    return records
+
+
 def _extract_zone_features(df: pd.DataFrame, zone: dict) -> dict:
     """区间内部量价/波动率/均线/知行/MACD/估值/市值特征（不含未来数据）。"""
     start = zone["start_idx"]

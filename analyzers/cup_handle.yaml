@@ -1,0 +1,11 @@
+# 杯柄突破：10/20/60 日收益
+name: cup_handle
+input: output/catch_cup_handle.csv
+horizons:
+  - {days: 10}
+  - {days: 20}
+  - {days: 60}
+ic:
+  signal: cup_depth_pct
+  horizon: ret_20d
+output: an_cup_handle.csv

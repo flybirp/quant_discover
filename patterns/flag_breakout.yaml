@@ -1,0 +1,21 @@
+# 旗形/三角形收敛整理突破（旗杆≥20% + 收敛旗面 + 破顶）
+name: flag_breakout
+detector:
+  type: flag_breakout
+  params:
+    pole_window: 20
+    pole_gain: 20.0
+    min_flag: 10
+    max_flag: 40
+    range_max: 15.0
+    converge_ratio: 0.7
+min_data_days: 120
+enrich:
+  - rel_ret_120d
+contract:
+  date: break_date
+  price: base_price
+sort:
+  by: break_date
+  ascending: false
+output: catch_flag_breakout.csv

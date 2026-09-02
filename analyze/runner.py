@@ -125,7 +125,8 @@ def run_analyzer(config: dict, data_dir: Path | None = None,
             rec = {"code": code, "base_date": str(row["base_date"]),
                    "base_price": round(base, 2)}
             # 透传分组/阈值列
-            for c in group_cols + [e["ref_col"] for e in events]:
+            ic_signal = config.get("ic", {}).get("signal") if config.get("ic") else None
+            for c in group_cols + [e["ref_col"] for e in events] + ([ic_signal] if ic_signal else []):
                 if c in row.index and c not in rec:
                     rec[c] = row[c]
 

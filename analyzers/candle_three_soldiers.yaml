@@ -1,0 +1,7 @@
+# 红三兵：5/20 日收益
+name: candle_three_soldiers
+input: output/catch_candle_three_soldiers.csv
+horizons:
+  - {days: 5}
+  - {days: 20}
+output: an_candle_three_soldiers.csv

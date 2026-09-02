@@ -1,0 +1,11 @@
+# 底背离：10/20/60 日收益（看涨方向）
+name: pv_divergence_bottom
+input: output/catch_pv_divergence_bottom.csv
+horizons:
+  - {days: 10}
+  - {days: 20}
+  - {days: 60}
+ic:
+  signal: vol_ratio_peaks
+  horizon: ret_20d
+output: an_pv_divergence_bottom.csv

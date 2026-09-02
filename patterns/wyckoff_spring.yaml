@@ -1,0 +1,19 @@
+# 威科夫 spring：横盘支撑假跌破后 ≤3 天收回
+name: wyckoff_spring
+detector:
+  type: wyckoff_spring
+  params:
+    range_days: 60
+    max_range: 25.0
+    spring_tol: 1.0
+    recover_days: 3
+min_data_days: 100
+enrich:
+  - rel_ret_120d
+contract:
+  date: break_date
+  price: base_price
+sort:
+  by: break_date
+  ascending: false
+output: catch_wyckoff_spring.csv

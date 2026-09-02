@@ -1,0 +1,17 @@
+# 向上跳空缺口（low > 前日 high，缺口 ≥2%）
+name: gap_up
+detector:
+  type: gap
+  params:
+    direction: up
+    min_gap: 2.0
+min_data_days: 60
+enrich:
+  - rel_ret_120d
+contract:
+  date: gap_date
+  price: base_price
+sort:
+  by: gap_date
+  ascending: false
+output: catch_gap_up.csv

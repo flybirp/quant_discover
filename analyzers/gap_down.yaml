@@ -1,0 +1,16 @@
+# 向下跳空：5/20/60 日收益 + 20 日内缺口是否回补（收盘收复缺口上沿）
+name: gap_down
+input: output/catch_gap_down.csv
+horizons:
+  - {days: 5}
+  - {days: 20}
+  - {days: 60}
+events:
+  - name: gap_filled_20d
+    ref_col: gap_base
+    horizon: {days: 20}
+    type: above
+ic:
+  signal: gap_pct
+  horizon: ret_20d
+output: an_gap_down.csv

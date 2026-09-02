@@ -21,3 +21,6 @@ sort:
   by: peak_date
   ascending: false
 output: catch_spike_top.csv
+enrich:
+  - rel_ret_120d
+enrich_index: zz1000

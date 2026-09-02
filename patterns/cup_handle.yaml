@@ -1,0 +1,19 @@
+# 杯柄形：跌出杯 + 回升至杯沿 + 浅柄 + 破杯沿
+name: cup_handle
+detector:
+  type: cup_handle
+  params:
+    cup_min: 30
+    cup_max: 90
+    depth_min: 15.0
+    depth_max: 50.0
+min_data_days: 140
+enrich:
+  - rel_ret_120d
+contract:
+  date: break_date
+  price: base_price
+sort:
+  by: break_date
+  ascending: false
+output: catch_cup_handle.csv
