@@ -225,8 +225,8 @@
 | 指数数据 | `~/Documents/mainland_index_data_2014/`（cyb/hs300/kcb/sh/sz/zz1000） |
 
 已接入 enrich 的 pattern：base_break、zfzs、spike_top、consolidation
-（结论见 `discover_15`：RPS 对超跌类形态冗余，仅横盘形态的
-低位过滤有效）。
+（结论见 `discover_15`：RPS 对超跌类形态冗余，横盘形态的
+高位过滤有效——RPS≥80 优 11.3pct，分年 10/10）。
 
 ## 四、各形态 RankIC 信号列映射（复刻必读）
 
