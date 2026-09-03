@@ -6,8 +6,8 @@ pattern/analyzer/专题脚本，全部数字由统一架构产出、可一键复
 
 - 生成方式：`python3 run.py catch patterns/X.yaml` + `python3 run.py analyze analyzers/X.yaml`（专题见各篇）
 - 数据基础：全市场 5062 只 A 股日线（2014-01 ~ 2026-08），前复权
-- 统计口径：`analyze/stats.py`（n / E（期望） / 中位 / 胜率 / 盈亏结构），
-  收益表统一为 **样本 / E（期望） / 中位 / 胜率** 四列；
+- 统计口径：`analyze/stats.py`（n / E（期望） / 中位 / 平均MaxDD / 胜率），
+  收益表统一为 **样本 / E（期望） / 中位 / 平均MaxDD（持仓感受）/ 胜率** 五列；
   排序能力用 **RankIC**（信号列 × 前瞻收益的 Spearman 秩相关）度量，
   二元事件用胜率相对背景基准的增量；周 horizon 为真自然周
 
