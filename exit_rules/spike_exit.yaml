@@ -1,0 +1,17 @@
+# discover_25 A1 腰斩：移动止盈/时间止损网格（对照 24 篇静态结论）
+name: spike_exit
+input: output/catch_spike_top.csv
+max_horizon: 120
+cost_roundtrip: 0.30
+passthrough: []
+rulesets:
+  - name: trail_10_5
+    rules: [{type: trailing, activate: 10, drawdown: 5}]
+  - name: trail_20_8
+    rules: [{type: trailing, activate: 20, drawdown: 8}]
+  - name: trail_30_10
+    rules: [{type: trailing, activate: 30, drawdown: 10}]
+  - name: time_20
+    rules: [{type: time, days: 20}]
+  - name: time_60
+    rules: [{type: time, days: 60}]

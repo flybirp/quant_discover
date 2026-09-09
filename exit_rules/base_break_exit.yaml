@@ -1,0 +1,14 @@
+# discover_25 A2 筑底跌破 C组x非缩量：止盈验证（24篇预测：禁止止盈）+ base_low 状态退出
+name: base_break_exit
+input: output/catch_base_break.csv
+filter: "group=='C' and volume_type!='缩量'"
+max_horizon: 180
+cost_roundtrip: 0.30
+passthrough: [base_low]
+rulesets:
+  - name: trail_15_8
+    rules: [{type: trailing, activate: 15, drawdown: 8}]
+  - name: trail_30_10
+    rules: [{type: trailing, activate: 30, drawdown: 10}]
+  - name: state_base_low
+    rules: [{type: state, ref_col: base_low}]

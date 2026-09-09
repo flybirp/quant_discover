@@ -1,0 +1,13 @@
+# discover_25 A3 底背离：移动止盈/时间止损（24篇预测：禁止止盈）
+name: pv_div_exit
+input: output/catch_pv_divergence_bottom.csv
+max_horizon: 180
+cost_roundtrip: 0.30
+passthrough: []
+rulesets:
+  - name: trail_20_8
+    rules: [{type: trailing, activate: 20, drawdown: 8}]
+  - name: trail_30_10
+    rules: [{type: trailing, activate: 30, drawdown: 10}]
+  - name: time_30
+    rules: [{type: time, days: 30}]

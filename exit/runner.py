@@ -41,6 +41,7 @@ def run_exit(config: dict, data_dir: Path | None = None,
     passthrough = tuple(config.get("passthrough", []))
     rulesets = config.get("rulesets") or []
     reenter_ma = config.get("reenter_ma")
+    query = config.get("filter")
 
     # 收集所有规则集用到的均线周期与 ref 列
     ma_periods = {20, 60}
@@ -59,7 +60,8 @@ def run_exit(config: dict, data_dir: Path | None = None,
     paths = load_paths(input_fp, data_dir=data_dir,
                        ma_periods=tuple(sorted(ma_periods)),
                        max_horizon=max_horizon,
-                       passthrough=passthrough)
+                       passthrough=passthrough,
+                       query=query)
     print(f"  路径: {len(paths)} 条")
 
     all_detail = []

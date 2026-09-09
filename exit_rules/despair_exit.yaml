@@ -1,0 +1,12 @@
+# discover_25 A5 绝望期承压组：止盈/时间止损（40 天坑的时间止损验证）
+name: despair_exit
+input: output/catch_despair_entry.csv
+filter: "seg>=-15 and seg<-5"
+max_horizon: 180
+cost_roundtrip: 0.30
+passthrough: []
+rulesets:
+  - name: trail_20_8
+    rules: [{type: trailing, activate: 20, drawdown: 8}]
+  - name: time_40
+    rules: [{type: time, days: 40}]

@@ -1,0 +1,18 @@
+# discover_25 B1 金叉波段：退出规则全参数 vs 引擎内置死叉退出（外部对照）
+# baseline_hold 250d 近似"永不退出"；死叉对照 = catch_zfzs 自带 return_pct
+name: zfzs_exit
+input: output/catch_zfzs.csv
+max_horizon: 250
+cost_roundtrip: 0.30
+passthrough: []
+rulesets:
+  - name: ma20_x2
+    rules: [{type: ma_break, ma: 20, confirm: 2}]
+  - name: trail_10_5
+    rules: [{type: trailing, activate: 10, drawdown: 5}]
+  - name: trail_20_8
+    rules: [{type: trailing, activate: 20, drawdown: 8}]
+  - name: trail_30_10
+    rules: [{type: trailing, activate: 30, drawdown: 10}]
+  - name: time_20
+    rules: [{type: time, days: 20}]

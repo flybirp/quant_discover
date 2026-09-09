@@ -1,0 +1,14 @@
+# discover_25 A4 深 spring：support 状态退出（21篇 rebreak 退出版）+ 止盈/时间
+name: spring_exit
+input: output/catch_wyckoff_spring.csv
+filter: "spring_depth_pct>=5"
+max_horizon: 120
+cost_roundtrip: 0.30
+passthrough: [support]
+rulesets:
+  - name: state_support
+    rules: [{type: state, ref_col: support}]
+  - name: trail_20_10
+    rules: [{type: trailing, activate: 20, drawdown: 10}]
+  - name: time_10
+    rules: [{type: time, days: 10}]

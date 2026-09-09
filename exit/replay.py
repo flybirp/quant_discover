@@ -32,17 +32,21 @@ class Path:
 def load_paths(input_fp: Path, data_dir: Path | None = None,
                ma_periods: tuple[int, ...] = (20, 60),
                max_horizon: int = 250,
-               passthrough: tuple[str, ...] = ()) -> list[Path]:
+               passthrough: tuple[str, ...] = (),
+               query: str | None = None) -> list[Path]:
     """读契约明细，逐股重放生成路径列表。
 
     ma_periods: 需要预计算的均线周期（规则用到哪些就传哪些）；
-    max_horizon: 路径截断长度（超出部分不进入重放）。
+    max_horizon: 路径截断长度（超出部分不进入重放）；
+    query: pandas query 行过滤（如 group=='C'）。
     基准日在个股日历中不存在（停牌）或前 ma 不足的行被跳过并计数。
     """
     data_dir = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
     sig = pd.read_csv(input_fp, encoding="utf-8-sig", dtype={"code": str})
     if "code" in sig.columns:
         sig["code"] = sig["code"].str.replace(r"\.0$", "", regex=True)
+    if query:
+        sig = sig.query(query)
 
     paths: list[Path] = []
     skipped = 0
