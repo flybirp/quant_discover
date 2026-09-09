@@ -1,0 +1,29 @@
+# R1：均线破位确认退出的卖飞率（discover_27 主口径，附录六 R1 节）
+# 入场 = catch_ma_break_entry.csv（收盘上穿 MA20，金叉同构）
+# 退出 = 连续 N 日 close < MA，第 N 日收盘卖出
+# 曲面: MA{20,60} x N{1,2,3} 六参数点；锚点 = ma20_x2
+name: r1_ma_break
+input: output/catch_ma_break_entry.csv
+max_horizon: 120
+cost_roundtrip: 0.30
+passthrough: [vol60]
+reenter_ma: 20
+rulesets:
+  - name: ma20_x1
+    rules:
+      - {type: ma_break, ma: 20, confirm: 1}
+  - name: ma20_x2
+    rules:
+      - {type: ma_break, ma: 20, confirm: 2}
+  - name: ma20_x3
+    rules:
+      - {type: ma_break, ma: 20, confirm: 3}
+  - name: ma60_x1
+    rules:
+      - {type: ma_break, ma: 60, confirm: 1}
+  - name: ma60_x2
+    rules:
+      - {type: ma_break, ma: 60, confirm: 2}
+  - name: ma60_x3
+    rules:
+      - {type: ma_break, ma: 60, confirm: 3}

@@ -60,20 +60,23 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
         idx = {d: k for k, d in enumerate(dates)}
         ma_arrays = {n: sma(df["close"], n).values for n in ma_periods}
 
-        for _, row in group.iterrows():
-            k = idx.get(str(row["base_date"]))
-            if k is None or pd.isna(row["base_price"]) or row["base_price"] <= 0:
+        # itertuples 高速路径（60 万行级）
+        cols = ["base_date", "base_price"] + [c for c in passthrough
+                                              if c in group.columns]
+        for tup in group[cols].itertuples(index=False):
+            bd, bp = tup[0], tup[1]
+            extra = dict(zip(cols[2:], tup[2:]))
+            k = idx.get(str(bd))
+            if k is None or pd.isna(bp) or bp <= 0:
                 skipped += 1
                 continue
             end = min(k + 1 + max_horizon, len(close))
-            meta = {c: row[c] for c in passthrough if c in row.index}
             paths.append(Path(
-                code=code, base_date=str(row["base_date"]),
-                base_price=float(row["base_price"]),
+                code=code, base_date=str(bd), base_price=float(bp),
                 close=close[k:end],
                 ma={n: ma_arrays[n][k:end] for n in ma_periods},
                 horizon=end - k - 1,
-                meta=meta))
+                meta=extra))
     if skipped:
         print(f"  [replay] 跳过 {skipped} 行（停牌/缺数据）", flush=True)
     return paths

@@ -28,16 +28,11 @@ class TrailingStop(Rule):
 
     def trigger(self, p: Path) -> int | None:
         cl = p.close
-        peak = -np.inf
-        activated = False
-        for i in range(len(cl)):
-            if cl[i] > peak:
-                peak = cl[i]
-            if not activated and (peak / p.entry - 1) * 100 >= self.activate:
-                activated = True
-            if activated and (peak - cl[i]) / peak * 100 >= self.drawdown:
-                return i
-        return None
+        peak = np.maximum.accumulate(cl)
+        activated = np.cumsum((peak / p.entry - 1) * 100 >= self.activate) > 0
+        trig = activated & (((peak - cl) / peak * 100) >= self.drawdown)
+        idx = np.flatnonzero(trig)
+        return int(idx[0]) if len(idx) else None
 
 
 class TimeStop(Rule):
@@ -55,7 +50,10 @@ class TimeStop(Rule):
 
 
 class MaBreakExit(Rule):
-    """均线 N 日确认退出：连续 N 日 close < MA(n)，第 N 日收盘出（R1）。"""
+    """均线 N 日确认退出：连续 N 日 close < MA(n)，第 N 日收盘出（R1）。
+
+    向量化：滑动窗内 below 全 True 的首个窗口右端即触发点。
+    """
 
     def __init__(self, ma: int = 20, confirm: int = 2):
         self.ma = ma
@@ -63,23 +61,21 @@ class MaBreakExit(Rule):
         self.name = f"ma{ma}_x{self.confirm}"
 
     def trigger(self, p: Path) -> int | None:
-        cl = p.close
         m = p.ma.get(self.ma)
         if m is None:
             raise KeyError(f"路径未预计算 MA{self.ma}（load_paths ma_periods）")
-        run = 0
-        for i in range(1, len(cl)):          # 自基准次日起判定（基准日为入场日）
-            if not np.isnan(m[i]) and cl[i] < m[i]:
-                run += 1
-                if run >= self.confirm:
-                    return i
-            else:
-                run = 0
-        return None
+        k = self.confirm
+        # 自基准次日起判定（下标 0 = 原路径的 i=1）
+        below = (p.close < m)[1:].astype(np.int8)
+        if len(below) < k:
+            return None
+        w = np.convolve(below, np.ones(k, dtype=np.int8), "valid")
+        cand = np.flatnonzero(w == k)
+        return int(cand[0] + k) if len(cand) else None  # +k: 窗口右端(+1偏移)
 
 
 class StateExit(Rule):
-    """状态退出：逐日 close < 行透传阈值列 ref_col 即出。"""
+    """状态退出：逐日 close < 行透传阈值列 ref_col 即出（首个下标，自基准次日起）。"""
 
     def __init__(self, ref_col: str):
         self.ref_col = ref_col
@@ -89,11 +85,9 @@ class StateExit(Rule):
         ref = p.meta.get(self.ref_col)
         if ref is None or (isinstance(ref, float) and np.isnan(ref)):
             return None
-        ref = float(ref)
-        for i in range(1, len(p.close)):
-            if p.close[i] < ref:
-                return i
-        return None
+        below = p.close[1:] < float(ref)
+        idx = np.flatnonzero(below)
+        return int(idx[0] + 1) if len(idx) else None
 
 
 RULE_TYPES = {

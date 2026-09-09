@@ -10,15 +10,19 @@ from exit.rules import apply_ruleset
 
 def evaluate(paths: list[Path], rules: list[Rule], max_horizon: int,
              cost_roundtrip: float = 0.30,
-             post_days: int = 60) -> pd.DataFrame:
+             post_days: int = 60,
+             reenter_ma: int | None = None,
+             reenter_days: int = 20) -> pd.DataFrame:
     """对每路径应用规则集，返回逐样本退出明细 DataFrame。
 
     列: code/base_date/days/exit_idx/ret_net/win/reason/segment
         + post_max{N}（退出后 N 日内 max(close)/退出价-1，%）
         + post_below{N}（退出后 N 日 close 是否持续 < 退出价）
+        + reenter（退出后 N 交易日内重新上穿 reenter_ma 均线，附录六
+          R1 再入场频率；需路径未截断覆盖）
+        + meta 透传列（passthrough 指定的分组列，如 vol60）
     ret_net = (exit_close/entry - 1)*100 - cost_roundtrip（附录六）。
-    未触发持有至路径末端收盘平仓。post 列为 R1 卖飞统计的基础
-    （附录六：卖飞率/卖对率/错失幅度）。
+    未触发持有至路径末端收盘平仓。
     """
     from exit.rules import Rule  # noqa: F401  (类型标注)
     rows = []
@@ -34,13 +38,30 @@ def evaluate(paths: list[Path], rules: list[Rule], max_horizon: int,
             post_below = bool((post < exit_px).all())
         else:
             post_max, post_below = np.nan, np.nan
-        rows.append({
+
+        reenter = np.nan
+        if reenter_ma is not None:
+            m = p.ma.get(reenter_ma)
+            if m is not None:
+                seg = slice(i + 1, i + 1 + reenter_days + 1)
+                cl, mm = p.close[seg], m[seg]
+                if len(cl) >= 2:
+                    cross = (cl[1:] > mm[1:]) & (cl[:-1] <= mm[:-1])
+                    if not np.isnan(mm).any() and cross.any():
+                        reenter = True
+                    elif not np.isnan(mm).any():
+                        reenter = False
+
+        row = {
             "code": p.code, "base_date": p.base_date,
             "days": i, "ret_net": round(ret, 2),
             "win": ret > 0, "reason": reason,
             "segment": "fit" if p.base_date[:4] <= "2021" else "validate",
             f"post_max{post_days}": post_max,
-            f"post_below{post_days}": post_below})
+            f"post_below{post_days}": post_below,
+            "reenter": reenter}
+        row.update(p.meta)
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -58,7 +79,7 @@ def flying_stats(df: pd.DataFrame, post_days: int = 60) -> dict:
         "卖飞率(+10%)": round((pm >= 10).mean() * 100, 1),
         "错失中位": round(pm.median(), 2),
         "错失P75": round(pm.quantile(0.75), 2),
-        "卖对率": round((pb.fillna(False)).mean() * 100, 1),
+        "卖对率": round((pb == True).mean() * 100, 1),
     }
 
 

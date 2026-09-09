@@ -2482,3 +2482,36 @@ def detect_effort_defeat(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
             break  # 每个击败K只配首个关键K
 
     return records
+
+
+# ============================================================
+# 均线上穿入场事件（R1，discover_27；附录六口径）
+# ============================================================
+
+@register("ma_break_entry")
+def detect_ma_break_entry(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """收盘上穿 MA 的入场事件（与金叉同构的交叉定义，附录六 R1 节）。
+
+    上穿 = close[i-1] <= MA[i-1] 且 close[i] > MA[i]
+    输出: base_date/base_price = 上穿日/收盘；vol60 = 上穿日 60 日
+    日收益 std%（波动率分层用，附录六 R1 节）。
+    """
+    ma_n = int(p.get("ma", 20))
+    close = df["close"].values
+    dates = df["date"].values
+    ma = sma(df["close"], ma_n).values
+    std60 = df["close"].pct_change().rolling(60).std().values * 100
+    n = len(close)
+
+    events = []
+    for i in range(1, n):
+        if np.isnan(ma[i - 1]) or np.isnan(ma[i]) or np.isnan(std60[i]):
+            continue
+        if close[i - 1] <= ma[i - 1] and close[i] > ma[i]:
+            events.append({
+                "code": code,
+                "base_date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+                "base_price": round(float(close[i]), 2),
+                "vol60": round(float(std60[i]), 2),
+            })
+    return events

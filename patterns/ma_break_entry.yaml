@@ -1,0 +1,11 @@
+# R1 入场事件（discover_27）：收盘上穿 MA20（附录六 R1 节，金叉同构交叉）
+# vol60 = 上穿日 60 日日收益 std（波动率分层）
+name: ma_break_entry
+detector:
+  type: ma_break_entry
+  params:
+    ma: 20
+min_data_days: 120
+sort:
+  by: base_date
+  ascending: true

@@ -40,6 +40,7 @@ def run_exit(config: dict, data_dir: Path | None = None,
     cost = float(config.get("cost_roundtrip", 0.30))
     passthrough = tuple(config.get("passthrough", []))
     rulesets = config.get("rulesets") or []
+    reenter_ma = config.get("reenter_ma")
 
     # 收集所有规则集用到的均线周期与 ref 列
     ma_periods = {20, 60}
@@ -70,14 +71,23 @@ def run_exit(config: dict, data_dir: Path | None = None,
     print(f"\n  [baseline: 持有到期 {max_horizon}d]")
     print(summarize(base_detail).to_string(index=False))
 
+    from exit.metrics import flying_stats
     for rs in rulesets:
         rules = build_rules(rs.get("rules", []))
-        detail = evaluate(paths, rules, max_horizon, cost)
+        detail = evaluate(paths, rules, max_horizon, cost,
+                          reenter_ma=reenter_ma)
         detail["ruleset"] = rs["name"]
         all_detail.append(detail)
         print(f"\n  [{rs['name']}]  rules: "
               f"{', '.join(r.name for r in rules)}")
         print(summarize(detail).to_string(index=False))
+        fs = flying_stats(detail)
+        line = (f"  卖飞: +5% {fs['卖飞率(+5%)']}% | +10% "
+                f"{fs['卖飞率(+10%)']}% | 错失中位 {fs['错失中位']}% "
+                f"| P75 {fs['错失P75']}% | 卖对 {fs['卖对率']}%")
+        if "reenter" in detail.columns and detail["reenter"].notna().any():
+            line += f" | 再入场 {detail['reenter'].mean() * 100:.1f}%"
+        print(line)
         rt = reason_table(detail)
         if len(rt) > 1:
             print(rt.to_string())
