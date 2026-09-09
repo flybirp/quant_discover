@@ -1,0 +1,15 @@
+# R2 大级别单顶候选（discover_28）：一年翻倍的波段顶 + 后验标签
+# 参数 = 附录六 R2 节草案；is_major/is_fake/single_top 为后验标签列
+name: major_top
+detector:
+  type: major_top
+  params:
+    pullback_pct: 15.0
+    mult_250d: 2.0
+    post_days: 250
+    dd_confirm: 40.0
+    band_pct: 5.0
+min_data_days: 600
+sort:
+  by: base_date
+  ascending: true

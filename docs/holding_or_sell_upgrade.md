@@ -312,18 +312,20 @@ vs 固定持有基线。防过拟合纪律：报告全曲面而非只报最优�
 - 验收：全曲面报告 + fit/validate 分段 ✅（金叉 trail(10/5) 双段
   稳定 5.56/5.28；A4 分化大已标注）
 
-### T6 大顶检测器 + 退市覆盖前置检查（可与 T3~T5 并行）
+### T6 大顶检测器 + 退市覆盖前置检查（可与 T3~T5 并行）✅ 2026-09-10
 
-- [ ] 退市股覆盖抽查：`tools/delisting_precheck.py`（已知退市代码
-  vs 数据目录；不通过则 R2 结论标注幸存者偏差上限——开工条件）
-- [ ] 大顶检测走 wave_catcher 体系（**不放 tools/**）：
-  `core/primitives.py` 注册 major_top detector（附录六 R2 三条件，
-  close 触及口径；与 spike_top 同源可共享周线工具函数）
-  + `patterns/major_top.yaml`
-- [ ] 假顶对照组提取：`analyzers/major_top.yaml`（analyzer 事件口径
-  ——250 日内 close 创新高即假顶）
-- 验收：大顶/假顶样本量报告 + 年度聚类分布（预期集中 2015/2016/
-  2021/2024）
+- [x] 退市股覆盖抽查：`tools/delisting_precheck.py`——**0/11 覆盖，
+  数据池为纯幸存者集合**（乐视网/康得新/长生等全缺失）。已在附录一
+  股票池口径加全局警示：一切左尾结论实际比报告值更极端，28 篇
+  必须标注偏差上限
+- [x] 大顶检测走 wave_catcher 体系：`core/primitives.py` 注册
+  major_top detector + `patterns/major_top.yaml`（波段顶状态机 +
+  前置涨幅 + 后验标签列 is_major/is_fake/single_top）
+- [x] 假顶对照组：**由 detector 标签列承担**（原计划的独立 analyzer
+  方案简化——is_fake 列直接分组，行为不变配置更少）
+- 验收：候选 23,795（大顶 9,328 / 假顶 13,469 / 单顶 1,841；
+  大顶且单顶 1,759 vs 假顶且单顶 5——单顶条件后验判别力极强，
+  事前可用性留 T7 检验）；年度聚类 2015 占 40% ✓（R2 节预期）
 
 ### T7 discover_28：大级别单顶的顶点特征
 

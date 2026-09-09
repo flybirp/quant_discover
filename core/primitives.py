@@ -2515,3 +2515,73 @@ def detect_ma_break_entry(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                 "vol60": round(float(std60[i]), 2),
             })
     return events
+
+
+# ============================================================
+# 大级别单顶候选（R2，discover_28；附录六 R2 节）
+# ============================================================
+
+@register("major_top")
+def detect_major_top(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """大级别单顶候选：前置涨幅（一年翻倍）的波段顶 + 后验标签。
+
+    波段顶 = 自最高收盘回落 pullback% 确认（状态机同 main_dd 家族）；
+    base_date/base_price = 顶点日/收盘（特征研究点）。
+    标签列（后验，仅用于研究分组，禁作事前特征）：
+      is_major  = 顶点后 post_days 内 close 不创新高 且回撤 <= -dd_confirm%
+      is_fake   = 后验窗口内 close 创新高（假顶，对照组）
+      single_top = 顶点 ±band% 价格带在前 post_days+后 post_days 窗口内
+                   close 触及段数 == 1（close 口径，附录歧义点 12）
+    后验窗口数据不足的候选跳过（标签不完整不定）。
+    """
+    pullback = float(p.get("pullback_pct", 15.0))
+    mult = float(p.get("mult_250d", 2.0))
+    post_win = int(p.get("post_days", 250))
+    dd_req = float(p.get("dd_confirm", 40.0))
+    band = float(p.get("band_pct", 5.0))
+
+    close = df["close"].values
+    dates = df["date"].values
+    n = len(close)
+    out = []
+
+    i = 0
+    while i < n:
+        peak_i, peak = i, close[i]
+        j = i + 1
+        confirmed = False
+        while j < n:
+            if close[j] > peak:
+                peak_i, peak = j, close[j]
+            elif (peak - close[j]) / peak * 100 >= pullback:
+                confirmed = True
+                break
+            j += 1
+        if not confirmed:
+            break
+        if peak_i >= 250 and peak_i + post_win < n:
+            prior = close[peak_i - 250]
+            if peak >= prior * mult:
+                seg = close[peak_i + 1:peak_i + 1 + post_win]
+                if (seg > peak).any():
+                    is_major, is_fake = False, True
+                else:
+                    dd = (float(seg.min()) / peak - 1) * 100
+                    is_major, is_fake = dd <= -dd_req, False
+                lo, hi = peak * (1 - band / 100), peak * (1 + band / 100)
+                w0, w1 = max(0, peak_i - post_win), peak_i + post_win + 1
+                w = close[w0:w1]
+                inband = ((w >= lo) & (w <= hi)).astype(np.int8)
+                segs = int(np.diff(np.concatenate([[0], inband])).clip(min=0).sum())
+                out.append({
+                    "code": code,
+                    "base_date": pd.Timestamp(dates[peak_i]).strftime("%Y-%m-%d"),
+                    "base_price": round(float(peak), 2),
+                    "prior_mult": round(float(peak / prior), 2),
+                    "is_major": is_major,
+                    "is_fake": is_fake,
+                    "single_top": segs == 1,
+                    "band_segs": segs,
+                })
+        i = j + 1
+    return out
