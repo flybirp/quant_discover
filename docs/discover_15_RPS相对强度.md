@@ -124,9 +124,9 @@ E+5.51%/60.7%）优于抗跌者（个股绝对下跌，E+3.40%/56.1%）**——
 ## 复现
 
 ```bash
-# 前置：an 明细（base_break 需 60 日口径，其余为标准 analyze 输出）
+# 前置：an 明细（base_break 为日线多 horizon 版，含 rel 所需列）
 python3 run.py catch patterns/base_break.yaml      # 输出含 rel_ret_120d 列
-python3 run.py analyze analyzers/base_break_60d.yaml
+python3 run.py analyze analyzers/base_break_days.yaml
 python3 run.py analyze analyzers/zfzs.yaml
 python3 run.py analyze analyzers/spike.yaml
 python3 run.py analyze analyzers/consolidation.yaml

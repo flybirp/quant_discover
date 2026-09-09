@@ -27,7 +27,7 @@ PERIOD = 120
 
 # 形态 -> an 明细（需含 code/base_date/ret_60d/maxdn_60d）
 PATTERNS = {
-    "base_break": "an_base_break_60d.csv",
+    "base_break": "an_base_break_days.csv",
     "zfzs": "an_zfzs.csv",
     "spike_top": "an_spike.csv",
     "consolidation": "an_consolidation.csv",

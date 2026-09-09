@@ -1,0 +1,15 @@
+# 04/24 篇共用：base_break 日线多 horizon（A2 持有期研究）
+# week 口径（an_base_break.csv）为 04 篇专用，互不影响
+name: base_break_days
+input: output/catch_base_break.csv
+horizons:
+  - {days: 20}
+  - {days: 40}
+  - {days: 60}
+  - {days: 90}
+  - {days: 120}
+  - {days: 180}
+group_cols:
+  - group
+  - volume_type
+output: an_base_break_days.csv

@@ -4,7 +4,11 @@ input: output/catch_wyckoff_spring.csv
 horizons:
   - {days: 10}
   - {days: 20}
+  - {days: 40}
   - {days: 60}
+  - {days: 90}
+  - {days: 120}
+  - {days: 180}
 events:
   - name: rebreak_20d
     ref_col: support

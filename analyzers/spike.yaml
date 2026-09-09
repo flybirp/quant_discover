@@ -1,9 +1,12 @@
 name: spike
 input: output/catch_spike_top.csv
 horizons:
+- days: 20
+- days: 40
 - days: 60
 - days: 90
 - days: 120
+- days: 180
 output: an_spike.csv
 ic:
   signal: down_pct

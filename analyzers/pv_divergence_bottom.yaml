@@ -4,7 +4,11 @@ input: output/catch_pv_divergence_bottom.csv
 horizons:
   - {days: 10}
   - {days: 20}
+  - {days: 40}
   - {days: 60}
+  - {days: 90}
+  - {days: 120}
+  - {days: 180}
 ic:
   signal: vol_ratio_peaks
   horizon: ret_20d
