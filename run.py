@@ -31,7 +31,7 @@ def _load_yaml(path: str) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("command", choices=["catch", "analyze"])
+    ap.add_argument("command", choices=["catch", "analyze", "exit"])
     ap.add_argument("config", help="YAML 配置路径")
     ap.add_argument("--data-dir", help="覆盖数据目录")
     ap.add_argument("--set", action="append", default=[],
@@ -67,6 +67,13 @@ def main():
             config,
             data_dir=args.data_dir,
             overrides=overrides or None,
+            out_path=Path(args.out) if args.out else None,
+        )
+    elif args.command == "exit":
+        from exit.runner import run_exit
+        run_exit(
+            config,
+            data_dir=Path(args.data_dir) if args.data_dir else None,
             out_path=Path(args.out) if args.out else None,
         )
 

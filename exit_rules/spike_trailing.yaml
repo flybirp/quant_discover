@@ -1,0 +1,20 @@
+# 示例/冒烟：A1 腰斩的移动止盈曲面（discover_25 将扩展全网格）
+# 口径：附录六（移动止盈重放、净成本、fit/validate 分段）
+name: spike_trailing
+input: output/catch_spike_top.csv
+max_horizon: 90
+cost_roundtrip: 0.30
+passthrough: []
+rulesets:
+  - name: trail_10_5
+    rules:
+      - {type: trailing, activate: 10, drawdown: 5}
+  - name: trail_20_8
+    rules:
+      - {type: trailing, activate: 20, drawdown: 8}
+  - name: trail_30_10
+    rules:
+      - {type: trailing, activate: 30, drawdown: 10}
+  - name: ma20_x2
+    rules:
+      - {type: ma_break, ma: 20, confirm: 2}
