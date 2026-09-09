@@ -1,0 +1,15 @@
+# 23/24 篇共用：绝望期企稳日入场（despair_cycle --export-events 产出）
+# seg = 主跌段累计收益（附录二·23 绝望期家族），query 过滤承压组:
+#   seg>=-15 and seg<-5
+name: despair_entry
+input: output/catch_despair_entry.csv
+horizons:
+  - {days: 20}
+  - {days: 40}
+  - {days: 60}
+  - {days: 90}
+  - {days: 120}
+  - {days: 180}
+group_cols:
+  - seg
+output: an_despair_entry.csv

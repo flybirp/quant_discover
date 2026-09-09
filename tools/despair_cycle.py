@@ -54,7 +54,8 @@ def pass1_breadth() -> dict[str, list[int]]:
     return breadth
 
 
-def main(drop20: float, n_desp: int, reb: float, hold: int):
+def main(drop20: float, n_desp: int, reb: float, hold: int,
+         export: str | None = None):
     breadth = pass1_breadth()
     ratio = {d: v[1] / (v[0] + v[1]) for d, v in breadth.items()
              if v[0] + v[1] >= 1500}
@@ -105,6 +106,11 @@ def main(drop20: float, n_desp: int, reb: float, hold: int):
         return (icl[j] / icl[idx_pos[D]] - 1) * 100 if j < n else np.nan
 
     rows = []
+    if export:
+        # 事件契约导出：企稳日 T1 收盘为 base，seg = 主跌段（分组用）
+        out_rows = []
+    else:
+        out_rows = None
     files = sorted(DATA_DIR.glob("*.csv"))
     for i, f in enumerate(files, 1):
         df = load_data(f, 180)
@@ -116,11 +122,17 @@ def main(drop20: float, n_desp: int, reb: float, hold: int):
         pos = {d: k for k, d in enumerate(ds)}
         for k, (d0, dl, d1) in pmap.items():
             k0, kl, k1 = pos.get(d0), pos.get(dl), pos.get(d1)
-            if (k0 is None or kl is None or k1 is None
-                    or k0 < 20 or k1 + 60 >= len(cl_s)):
+            if k0 is None or kl is None or k1 is None or k0 < 20:
                 continue
             ks = k0 - 20  # 主跌段起点 = 下跌起点
             seg = (cl_s[kl] / cl_s[ks] - 1) * 100
+            if export:
+                # 尾部数据不足的样本也导出（analyze 引擎自行记 NaN）
+                out_rows.append([f.stem, d1, round(float(cl_s[k1]), 2),
+                                 round(seg, 2)])
+                continue
+            if k1 + 60 >= len(cl_s):
+                continue
             r20 = (cl_s[k1 + 20] / cl_s[k1] - 1) * 100
             r60 = (cl_s[k1 + 60] / cl_s[k1] - 1) * 100
             mdd = (low_s[k1 + 1:k1 + 61].min() / cl_s[k1] - 1) * 100
@@ -128,6 +140,15 @@ def main(drop20: float, n_desp: int, reb: float, hold: int):
             rows.append([f.stem, k, seg, reb_s, r20, r60, mdd])
         if i % 1000 == 0:
             print(f"  pass2 {i}/{len(files)}", file=sys.stderr)
+
+    if export:
+        out = pd.DataFrame(out_rows,
+                           columns=["code", "base_date", "base_price", "seg"])
+        out = out.sort_values("base_date").reset_index(drop=True)
+        out.to_csv(export, index=False, encoding="utf-8-sig")
+        print(f"\n事件明细已导出: {export}（{len(out)} 行，"
+              f"契约格式 code/base_date/base_price，seg=主跌段供过滤）")
+        return
 
     df = pd.DataFrame(rows, columns=["code", "per", "seg", "reb",
                                      "r20", "r60", "mdd"])
@@ -187,5 +208,8 @@ if __name__ == "__main__":
                     help="企稳: 自低点反弹阈值%%（默认 7）")
     ap.add_argument("--hold", type=int, default=10,
                     help="企稳: 低点后最少交易日（默认 10）")
+    ap.add_argument("--export-events", metavar="CSV", default=None,
+                    help="导出企稳日事件明细（契约格式+seg 列）后退出，"
+                         "供 analyze/exit 引擎消费")
     a = ap.parse_args()
-    main(a.drop20, a.ndesp, a.reb, a.hold)
+    main(a.drop20, a.ndesp, a.reb, a.hold, a.export_events)

@@ -244,23 +244,25 @@ vs 固定持有基线。防过拟合纪律：报告全曲面而非只报最优�
 3. **重放引擎唯一**：持有期逐日重放只在 `exit/` 包实现一次，
    T4/T5/T8 复用，禁止各研究自写重放。
 
-### T1 静态聚合：analyzer YAML + tools/holding_analysis.py（工作量小）
+### T1 静态聚合：analyzer YAML + tools/holding_analysis.py（工作量小）✅ 2026-09-10
 
-- [ ] 补跑 A1~A4 多 horizon：仅新增 `analyzers/*.yaml` 的
+- [x] 补跑 A1~A4 多 horizon：仅新增 `analyzers/*.yaml` 的
   horizons（40/90/180 日），走现有 analyze 引擎，不写新代码
-- [ ] `tools/holding_analysis.py`（holding_curve 与 mfe_mae 合并，
+- [x] `tools/holding_analysis.py`（holding_curve 与 mfe_mae 合并，
   两子命令）：an 明细聚合——衰减曲线（E/胜率/盈亏比/平均MaxDD
   随持有期）+ MFE/MAE（附录口径，含基准日）分布与止损扫描
   （-5/-8/-10/-15%：截左尾量 vs 误伤赢家比例；止盈 +10/+20% 代价）
-- 验收：A1~A4 全表带 n；档位参数 CLI 化，默认值与附录一致
+- 验收：A1~A4 全表带 n；档位参数 CLI 化 ✅（负档位需
+  `--levels=-3,-5` 等号形式）
 
-### T2 discover_24：最优持有期 + MFE/MAE 全景
+### T2 discover_24：最优持有期 + MFE/MAE 全景 ✅ 2026-09-10
 
-- [ ] A5 事件契约化：`tools/despair_cycle.py` 增加 `--export-events`
+- [x] A5 事件契约化：`tools/despair_cycle.py` 增加 `--export-events`
   导出绝望期承压组入场明细（标准契约格式），再走 analyzers YAML
   跑多 horizon——**不改 despair_cycle 的分析逻辑**
-- [ ] 成文：每信号持有期甜点 + 止损-右尾权衡表
-- 验收：A1~A5 齐全；验收标准见第四节
+- [x] 成文：每信号持有期甜点 + 止损-右尾权衡表
+  （`discover_24_持有期与止损全景.md`）
+- 验收：A1~A5 齐全；验收标准见第四节 ✅
 
 ### T3 退出规则引擎：exit/ 包（核心基建，工作量最大）
 
