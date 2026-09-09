@@ -98,12 +98,17 @@ vs 固定持有基线。防过拟合纪律：报告全曲面而非只报最优�
 
 ## 四、工具与产出
 
-| 工具 | 用途 | 状态 |
-|------|------|------|
-| `tools/holding_curve.py` | 3.1 持有期衰减曲线（an 多窗口聚合 + 补跑 40/90/180） | 待建，工作量小 |
-| `tools/mfe_mae.py` | 3.2 MFE/MAE 分布与止损扫描（现有 an 明细即可） | 待建，工作量小 |
-| `tools/exit_backtest.py` | 3.3 规则回测引擎（catch 明细 + 日线重放 + 规则参数 → 退出分布） | 待建，**工作量最大**（核心基建） |
-| `tools/exit_state.py` | 3.4 持有期状态 IC | 待建 |
+| 组件 | 位置 | 用途 | 状态 |
+|------|------|------|------|
+| `exit/` 引擎包 | `exit/replay.py` + `rules.py` + `metrics.py` | 3.3 退出规则引擎（唯一重放实现，规则参数由 `exit_rules/*.yaml` 注入） | 待建，**工作量最大**（核心基建） |
+| `tools/holding_analysis.py` | tools/（薄壳） | 3.1+3.2 静态聚合（衰减曲线 + MFE/MAE 扫描，两子命令） | 待建，工作量小 |
+| `tools/exit_report.py` | tools/（薄壳） | 退出规则结果报告（复现入口） | 随 exit/ 包 |
+| `tools/exit_state.py` | tools/（薄壳） | 3.4 持有期状态 IC（复用 exit 重放） | 待建 |
+| ma_break_entry detector | `core/primitives.py` + `patterns/` | R1 入场检测（wave_catcher 体系） | 待建 |
+| major_top detector | `core/primitives.py` + `patterns/` | R2 大顶检测（wave_catcher 体系，与 spike_top 同源） | 待建 |
+| `tools/delisting_precheck.py` | tools/ | R2 退市覆盖前置检查 | 待建 |
+| `tools/top_profile.py` | tools/ | R2 顶点特征统计（大顶 vs 假顶） | 待建 |
+| 多 horizon 补跑 | 仅 `analyzers/*.yaml` 加 horizons | 40/90/180 日（现有 analyze 引擎，零新代码） | 待改配置 |
 
 研究产出（discover_24 起）：
 
@@ -223,69 +228,98 @@ vs 固定持有基线。防过拟合纪律：报告全曲面而非只报最优�
 > 状态标记：[ ] 未开始 / [x] 完成。每任务含产出与验收要点；
 > 口径一律引用附录六，不得文档内自定。
 
-### T1 工具建设：holding_curve.py + mfe_mae.py（工作量小）
+### 工程架构原则（二次检查后确立，2026-09-09）
 
-- [ ] 补跑 A1~A4 多 horizon analyzer YAML（40/90/180 日）
-- [ ] `tools/holding_curve.py`：聚合各形态 an 多窗口，输出
-  E/胜率/盈亏比/平均MaxDD 随持有期衰减曲线
-- [ ] `tools/mfe_mae.py`：maxup/maxdn（附录口径，含基准日）分布
-  + 止损扫描（-5/-8/-10/-15%：各档截左尾量 vs 误伤最终赢家比例）
-  + 止盈代价（+10/+20% 砍掉的右尾期望）
-- 验收：A1~A5 五信号全表输出，全部数字带 n
+1. **引擎统一 + YAML 配置驱动**（项目既有哲学的延伸）：
+   - 入场检测 → `core/primitives.py` detector + `patterns/*.yaml`
+     （`run.py catch` 产出标准事件明细）；
+   - 固定窗口分析 → `analyze/` 引擎 + `analyzers/*.yaml`；
+   - **退出规则 → 新建 `exit/` 引擎包 + `exit_rules/*.yaml` 配置**——
+     引擎与配置分离，禁止规则参数硬编码在研究代码里；
+   - `tools/` 只放薄壳报告工具（复现入口），不放引擎。
+2. **事件明细契约**（全项目通用接口）：任何来源的入场事件
+   统一为 `(code, base_date, base_price, ...)` 的 catch 明细格式
+   ——绝望期入场、均线上穿等研究型事件导出后即可被 analyze
+   与 exit 两个引擎无差别消费。
+3. **重放引擎唯一**：持有期逐日重放只在 `exit/` 包实现一次，
+   T4/T5/T8 复用，禁止各研究自写重放。
+
+### T1 静态聚合：analyzer YAML + tools/holding_analysis.py（工作量小）
+
+- [ ] 补跑 A1~A4 多 horizon：仅新增 `analyzers/*.yaml` 的
+  horizons（40/90/180 日），走现有 analyze 引擎，不写新代码
+- [ ] `tools/holding_analysis.py`（holding_curve 与 mfe_mae 合并，
+  两子命令）：an 明细聚合——衰减曲线（E/胜率/盈亏比/平均MaxDD
+  随持有期）+ MFE/MAE（附录口径，含基准日）分布与止损扫描
+  （-5/-8/-10/-15%：截左尾量 vs 误伤赢家比例；止盈 +10/+20% 代价）
+- 验收：A1~A4 全表带 n；档位参数 CLI 化，默认值与附录一致
 
 ### T2 discover_24：最优持有期 + MFE/MAE 全景
 
-- [ ] A5 绝望期承压组补跑多 horizon（despair_cycle 扩展输出）
+- [ ] A5 事件契约化：`tools/despair_cycle.py` 增加 `--export-events`
+  导出绝望期承压组入场明细（标准契约格式），再走 analyzers YAML
+  跑多 horizon——**不改 despair_cycle 的分析逻辑**
 - [ ] 成文：每信号持有期甜点 + 止损-右尾权衡表
 - 验收：A1~A5 齐全；验收标准见第四节
 
-### T3 工具建设：exit_backtest.py（核心基建，工作量最大）
+### T3 退出规则引擎：exit/ 包（核心基建，工作量最大）
 
-- [ ] 输入契约：catch 明细 + 日线重放
-- [ ] 规则族实现：移动止盈（X×Y 网格，峰值=最高收盘）、时间止损、
-  状态退出（跌破 base_low/spring 低点、回撤 ≥8% low 口径、量能萎缩、
-  顶背离）、均线 N 日确认退出（R1）
-- [ ] 输出：每规则 E/胜率/持仓天数/单位时间收益（净成本往返 0.30%）
+- [ ] `exit/replay.py`：唯一重放引擎（catch 明细 + 日线 →
+  持有期逐日路径）
+- [ ] `exit/rules.py`：规则组件（每个规则一个类，参数从 YAML 注入）：
+  移动止盈（峰值=最高收盘）、时间止损、状态退出（跌破入场前结构/
+  回撤 ≥8% low 口径/量能萎缩/顶背离）、均线 N 日确认退出
+- [ ] `exit/metrics.py`：评估（E/胜率/持仓天数/单位时间收益，
+  净成本往返 0.30%）
+- [ ] `exit_rules/*.yaml`：规则配置（网格、参数、适用形态）
 - [ ] 防过拟合内建：全曲面输出 + 前段（2014-2021）拟合/后段
   （2022-2026）验证自动分段
-- 验收：单测通过；固定输入输出可复现
+- [ ] `run.py` 增加 `exit` 子命令（与 catch/analyze 同级入口）
+- 验收：单测通过；固定输入输出可复现；R1 四指标可由引擎直接产出
 
 ### T4 discover_27：R1 均线破位确认退出的卖飞率（T3 首个验收案例）
 
-- [ ] MA∈{20,60} × N∈{1,2,3} 六参数点全曲面
-- [ ] 四指标：卖飞率（max(close) 口径）/错失幅度/卖对率/再入场频率
-- [ ] 分组：全市场上穿基线 vs 叠加金叉/腰斩；分年牛熊；
-  个股波动率分层（60 日日收益 std）
+- [ ] 入场检测走 pattern：`core/primitives.py` 注册 ma_break_entry
+  detector + `patterns/ma_break_entry.yaml`（上穿定义=附录六 R1 节）
+- [ ] `exit_rules/ma_break_exit.yaml`：MA∈{20,60} × N∈{1,2,3}
+  六参数点全曲面
+- [ ] `tools/exit_report.py`：薄壳报告（四指标：卖飞率/错失幅度/
+  卖对率/再入场频率 + 净收益 + 分年牛熊 + 波动率分层）
 - 验收：净收益口径全表 + "MA20×2 在曲面中的位置"结论（平原还是角落）
 
 ### T5 discover_25：退出规则回测（A 类 + B1 金叉波段）
 
-- [ ] A1~A5 × 移动止盈/时间止损/状态退出网格回测
+- [ ] A1~A5 现有 catch 明细直接接入 exit 引擎（契约已满足）
+- [ ] `exit_rules/` 补移动止盈/时间止损/状态退出网格配置
 - [ ] B1：金叉波段全参数 + 与引擎内置死叉退出（现状基线）对比
 - 验收：全曲面报告 + 平原/尖峰标注 + 样本内外分段对比
 
-### T6 工具建设：top_catch.py + 退市覆盖前置检查（可与 T3~T5 并行）
+### T6 大顶检测器 + 退市覆盖前置检查（可与 T3~T5 并行）
 
-- [ ] 退市股覆盖抽查（已知退市代码 vs 数据目录，不通过则
-  R2 结论标注幸存者偏差上限——开工条件，见 R2 节）
-- [ ] `tools/top_catch.py`：大级别单顶检测（附录六 R2 三条件，
-  close 触及口径）+ 假顶对照组提取
+- [ ] 退市股覆盖抽查：`tools/delisting_precheck.py`（已知退市代码
+  vs 数据目录；不通过则 R2 结论标注幸存者偏差上限——开工条件）
+- [ ] 大顶检测走 wave_catcher 体系（**不放 tools/**）：
+  `core/primitives.py` 注册 major_top detector（附录六 R2 三条件，
+  close 触及口径；与 spike_top 同源可共享周线工具函数）
+  + `patterns/major_top.yaml`
+- [ ] 假顶对照组提取：`analyzers/major_top.yaml`（analyzer 事件口径
+  ——250 日内 close 创新高即假顶）
 - 验收：大顶/假顶样本量报告 + 年度聚类分布（预期集中 2015/2016/
   2021/2024）
 
 ### T7 discover_28：大级别单顶的顶点特征
 
-- [ ] 特征统计：顶点当日/当周（真自然周）K 线与量能
-  （量比默认口径，附录一）
-- [ ] 大顶 vs 假顶特征区分度排序
-- [ ] 事前可用性二次检验：特征 → 后续 60/120 日收益直接检验
-  （不经大顶标签），通过者才进卖出谱系
+- [ ] `tools/top_profile.py`：特征统计——顶点当日/当周（真自然周）
+  K 线与量能（量比默认口径，附录一），大顶 vs 假顶分组
+- [ ] 区分度排序 + 事前可用性二次检验（特征 → 后续 60/120 日收益
+  直接检验，不经大顶标签），通过者才进卖出谱系
 - 验收：退市覆盖检查结论 + 区分度表 + 二次检验结果三件套
 
-### T8 工具建设：exit_state.py
+### T8 持有期状态 IC（复用 T3 重放引擎，依赖 T3）
 
-- [ ] 持有期状态 IC：量能变化（放量滞涨/缩量新高）、回撤深度、
-  持有时长、RPS 衰减（15 篇持有版）对后续收益的 Spearman 相关
+- [ ] `exit/rules.py` 扩展状态探测规则（量能变化/回撤深度/持有时长/
+  RPS 衰减——15 篇持有版）→ 走重放引擎取状态截面
+- [ ] `tools/exit_state.py`：状态列对后续收益的 Spearman IC
 - 验收：各状态列 IC 表（n≥30 截面），分年方向
 
 ### T9 discover_26：卖出状态与谱系合成（收口，依赖 T7/T8）
@@ -299,8 +333,9 @@ vs 固定持有基线。防过拟合纪律：报告全曲面而非只报最优�
 ### 依赖与并行
 
 ```
-T1 → T2                      （最快出结论）
-T3 → T4 → T5                 （基建主线）
-T6 → T7                      （独立线，可与 T3~T5 并行）
-T8 → T9 ← T7                 （收口）
+T1 → T2                          （最快出结论，不依赖引擎）
+T3 → T4 → T5                     （exit 引擎主线）
+T3 → T8                          （状态 IC 复用重放引擎）
+T6 → T7                          （大顶独立线，可与主线并行）
+T8 + T7 → T9                     （收口）
 ```
