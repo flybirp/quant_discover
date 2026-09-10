@@ -120,6 +120,14 @@ E+5.51%/60.7%）优于抗跌者（个股绝对下跌，E+3.40%/56.1%）**——
 4. 方法学沉淀（已入规范）：样本年度集中度是形态统计的隐形杀手——
    spike 的 RPS 分组增量 9pct 在分年检验下归零，**任何分组结论
    必须先看样本是否被单一年份主导**。
+5. **持有期延伸：RPS 在"买入之后"同样冗余**（2026-09-10 补充，
+   详见 `discover_26` 补充二）：用全市场每日 RPS 分位表
+   （`tools/rps_table.py`，1,036 万行）检验持有期状态，
+   `rps_decay`（买入后相对强度变化）对后续 60 日收益的 IC 仅
+   **-0.050（腰斩）/ -0.029（底背离）**，比"浮盈"状态（-0.444）
+   弱近一个数量级且年度方向不稳。含义：RPS 只在**入场时点对
+   横盘形态**有效（结论 2），**不能用于持有期的去留判断**；
+   "RPS 衰减就减仓"这类规则不应建立。
 
 ## 复现
 
@@ -133,4 +141,9 @@ python3 run.py analyze analyzers/consolidation.yaml
 
 # 全市场截面分位 + 分组/RankIC/分年/MaxDD（约 4 分钟，扫全市场）
 python3 tools/rps_check.py
+
+# 持有期延伸（结论 5）：预计算每日分位表 + 状态 IC
+python3 tools/rps_table.py                       # 全市场每日 RPS（parquet）
+python3 tools/exit_state.py output/catch_spike_top.csv \
+    --rps output/rps_daily_zz1000_120d.parquet   # rps_t / rps_decay
 ```
