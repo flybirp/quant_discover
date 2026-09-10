@@ -121,6 +121,13 @@ def main(names: list[str]):
                       f">=80 {wh:5.1f} (n={len(hi):5}) | "
                       f"{'高强' if wh > wl else '低强'}")
 
+        # 聚类贡献（统一组件 tools/year_robustness）
+        from tools.year_robustness import cluster_index
+        ci = cluster_index(a, "grp", "ret_60d")
+        print(f"   聚类贡献指数 {ci['cluster_index']}（组间差 "
+              f"{ci['effect_all']} / 剔除{ci['top_year']}年 "
+              f"{ci['effect_ex_top_year']}）→ {ci['verdict']}")
+
         yc = a["year"].value_counts(normalize=True).sort_index()
         top = yc.head(3).round(3)
         print(f"-- 年度集中度: " + ", ".join(f"{y} {p*100:.0f}%" for y, p in top.items()))

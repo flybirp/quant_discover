@@ -23,9 +23,14 @@
 import argparse
 import re
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def load(fp: str, query: str | None) -> pd.DataFrame:
@@ -58,13 +63,22 @@ def curve(df: pd.DataFrame, by_year: int | None = None) -> None:
               f"{(r > 0).mean() * 100:>6.1f}% {plr:>7.2f} {m.mean():>+9.2f}%")
 
     if by_year:
+        # 复用统一分年组件（tools/year_robustness，纪律 5）
+        from tools.year_robustness import year_table, stability, cluster_index
         d = df.dropna(subset=[f"ret_{by_year}d"]).copy()
-        d["year"] = d["base_date"].astype(str).str[:4]
-        print(f"\n-- 分年稳健性（{by_year}d: E / 胜率 / n）")
-        for y, sub in d.groupby("year"):
-            r = sub[f"ret_{by_year}d"]
-            print(f"   {y}: {r.mean():>+6.2f}% / {(r > 0).mean() * 100:.0f}% "
-                  f"/ {len(r)}")
+        t = year_table(d, f"ret_{by_year}d")
+        print(f"\n-- 分年稳健性（{by_year}d，统一组件）")
+        for _, r in t.iterrows():
+            print(f"   {r['year']}: {r['E']:>+6.2f}% / {r['win']:.0f}% "
+                  f"/ {int(r['n'])}")
+        st = stability(t, "E")
+        print(f"   方向稳定性: {st['consistent']}/{st['n_years']} 年同向"
+              f"（{st['direction']}）p={st['p_value']}"
+              f"{' ✅' if st['p_value'] < 0.05 else ' ⚠'}")
+        ci = cluster_index(d, None, f"ret_{by_year}d")
+        print(f"   聚类贡献指数 {ci['cluster_index']}"
+              f"（剔除{ci['top_year']}年后效应 {ci['effect_ex_top_year']}"
+              f"）→ {ci['verdict']}")
 
 
 def mae(df: pd.DataFrame, h: int, levels: list[float]) -> None:

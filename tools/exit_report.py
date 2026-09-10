@@ -9,9 +9,14 @@
 """
 import argparse
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def per_year(df: pd.DataFrame) -> None:
@@ -29,6 +34,17 @@ def per_year(df: pd.DataFrame) -> None:
               f"{(s['post_below60'] == True).mean() * 100:>5.1f}% "
               f"{(re == True).mean() * 100 if len(re) else float('nan'):>6.1f}% "
               f"{s['days'].mean():>7.1f}")
+    # 方向稳定性 + 聚类贡献（统一组件）
+    from tools.year_robustness import year_table, stability, cluster_index
+    t = year_table(df, "ret_net")
+    st = stability(t, "E")
+    print(f"\n  方向稳定性: {st['consistent']}/{st['n_years']} 年同向"
+          f"（{st['direction']}）p={st['p_value']}"
+          f"{' ✅' if st['p_value'] < 0.05 else ' ⚠'}")
+    ci = cluster_index(df, None, "ret_net")
+    print(f"  聚类贡献指数 {ci['cluster_index']}"
+          f"（剔除{ci['top_year']}年后 {ci['effect_ex_top_year']}）"
+          f"→ {ci['verdict']}")
 
 
 def by_vol(df: pd.DataFrame) -> None:

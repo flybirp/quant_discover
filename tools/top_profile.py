@@ -112,6 +112,15 @@ def auc(a: pd.Series, b: pd.Series) -> float:
     return (r.iloc[:n1].sum() - n1 * (n1 + 1) / 2) / (n1 * n2)
 
 
+def _year_check(d: pd.DataFrame, f: str) -> None:
+    """分年去聚类复核（复用统一组件 tools/year_robustness）。"""
+    from tools.year_robustness import cluster_index
+    ci = cluster_index(d, "is_major", f)
+    print(f"  {f:<15} 聚类贡献指数 {ci['cluster_index']:>6} "
+          f"(全样本 {ci['effect_all']:>7.2f} / 剔除{ci['top_year']}年 "
+          f"{ci['effect_ex_top_year']:>7.2f}) → {ci['verdict']}")
+
+
 def main():
     sig = pd.read_csv(ROOT / "output/catch_major_top.csv",
                       encoding="utf-8-sig", dtype={"code": str}, low_memory=False)
@@ -165,7 +174,7 @@ def main():
               f"{(q1 > 0).mean() * 100:>6.1f}% {(q5 > 0).mean() * 100:>6.1f}% "
               f"{q5.mean() - q1.mean():>+10.2f}")
 
-    print("\n== 三、年度去聚类复核（2015 vs 非 2015 的 AUC 方向）")
+    print("\n== 三、年度去聚类复核（2015 vs 非 2015 的 AUC 方向 + 聚类贡献）")
     for f in FEATURES:
         if f == "is_red":
             continue
@@ -175,6 +184,11 @@ def main():
                    fake[fake["year"] != "2015"][f].dropna())
         flag = "" if (a15 - 0.5) * (anon - 0.5) > 0 else "  ⚠方向翻转"
         print(f"  {f:<15} 2015 AUC {a15:.3f} | 非2015 {anon:.3f}{flag}")
+    print("\n  -- 聚类贡献指数（统一组件，>0.5 = 聚类驱动）")
+    for f in FEATURES:
+        if f == "is_red":
+            continue
+        _year_check(d, f)
 
 
 if __name__ == "__main__":
