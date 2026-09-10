@@ -1,6 +1,0 @@
-# base_break 跌破日基准 60 日口径（discover_15 RPS 检验专用，不复写 an_base_break.csv）
-name: base_break_60d
-input: output/catch_base_break.csv
-horizons:
-  - {days: 60}
-output: an_base_break_60d.csv
