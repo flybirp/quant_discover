@@ -81,6 +81,28 @@ def curve(df: pd.DataFrame, by_year: int | None = None) -> None:
               f"）→ {ci['verdict']}")
 
 
+def dd_quantiles(df: pd.DataFrame, h: int) -> None:
+    """持有期最大回撤（maxdn，附录一）的分位数——仓位规模与
+    灾难止损位选择的依据（exit_playbook 实操节）。"""
+    ok = df[f"maxdn_{h}d"].notna()
+    m = df[f"maxdn_{h}d"][ok]
+    ret = df[f"ret_{h}d"][ok]
+    print(f"窗口 {h}d | n={len(m)} | 平均MaxDD {m.mean():.2f}%")
+    print("注: maxdn 为负值，'最深 X%' = 有 X% 的样本回撤至少这么深")
+    print(f"{'档位':<10} {'MaxDD阈值':>10} {'该深度样本的占比':>12} "
+          f"{'其最终收益中位':>14}")
+    print("-" * 50)
+    for lab, q in (("最深50%", 0.50), ("最深25%", 0.25), ("最深10%", 0.10),
+                   ("最深5%", 0.05), ("最深1%", 0.01), ("极值", 0.0)):
+        thr = m.quantile(q)
+        sub = ret[m <= thr]
+        share = (m <= thr).mean() * 100
+        print(f"{lab:<10} {thr:>9.2f}% {share:>11.1f}% "
+              f"{sub.median() if len(sub) else float('nan'):>13.2f}%")
+    print("\n用法：单票仓位 ≈ 可承受单票亏损 ÷ |最深5%的 MaxDD|；"
+          "灾难止损位参考 最深5%~最深1% 之间（触发率 1~5%）。")
+
+
 def mae(df: pd.DataFrame, h: int, levels: list[float]) -> None:
     """附录六：触发 = maxdn_Nd <= s；触发记 s，未触发记 ret_Nd。"""
     ret, mdd = df[f"ret_{h}d"], df[f"maxdn_{h}d"]
@@ -124,7 +146,7 @@ def mfe(df: pd.DataFrame, h: int, levels: list[float]) -> None:
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["curve", "mae", "mfe"])
+    ap.add_argument("cmd", choices=["curve", "mae", "mfe", "dd"])
     ap.add_argument("input", help="an 明细 CSV 路径")
     ap.add_argument("--query", help="pandas query 过滤（如 group=='C'）")
     ap.add_argument("--horizon", type=int, default=60, help="mae/mfe 窗口日数")
@@ -143,6 +165,8 @@ def main():
 
     if a.cmd == "curve":
         curve(df, a.by_year)
+    elif a.cmd == "dd":
+        dd_quantiles(df, a.horizon)
     elif a.cmd == "mae":
         levels = [float(x) for x in (a.levels or "-5,-8,-10,-15").split(",")]
         mae(df, a.horizon, levels)
