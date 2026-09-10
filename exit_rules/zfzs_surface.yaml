@@ -1,0 +1,68 @@
+# S2：金叉退出参数曲面（25 点）+ 死叉对照 + OR 组合（附录六）
+# activate x drawdown 网格；death_cross 为引擎内置死叉的可复现对照
+name: zfzs_surface
+input: output/catch_zfzs.csv
+max_horizon: 250
+cost_roundtrip: 0.30
+passthrough: []
+rulesets:
+  - name: trail_5_3
+    rules: [{type: trailing, activate: 5, drawdown: 3}]
+  - name: trail_5_5
+    rules: [{type: trailing, activate: 5, drawdown: 5}]
+  - name: trail_5_8
+    rules: [{type: trailing, activate: 5, drawdown: 8}]
+  - name: trail_5_10
+    rules: [{type: trailing, activate: 5, drawdown: 10}]
+  - name: trail_5_15
+    rules: [{type: trailing, activate: 5, drawdown: 15}]
+  - name: trail_10_3
+    rules: [{type: trailing, activate: 10, drawdown: 3}]
+  - name: trail_10_5
+    rules: [{type: trailing, activate: 10, drawdown: 5}]
+  - name: trail_10_8
+    rules: [{type: trailing, activate: 10, drawdown: 8}]
+  - name: trail_10_10
+    rules: [{type: trailing, activate: 10, drawdown: 10}]
+  - name: trail_10_15
+    rules: [{type: trailing, activate: 10, drawdown: 15}]
+  - name: trail_15_3
+    rules: [{type: trailing, activate: 15, drawdown: 3}]
+  - name: trail_15_5
+    rules: [{type: trailing, activate: 15, drawdown: 5}]
+  - name: trail_15_8
+    rules: [{type: trailing, activate: 15, drawdown: 8}]
+  - name: trail_15_10
+    rules: [{type: trailing, activate: 15, drawdown: 10}]
+  - name: trail_15_15
+    rules: [{type: trailing, activate: 15, drawdown: 15}]
+  - name: trail_20_3
+    rules: [{type: trailing, activate: 20, drawdown: 3}]
+  - name: trail_20_5
+    rules: [{type: trailing, activate: 20, drawdown: 5}]
+  - name: trail_20_8
+    rules: [{type: trailing, activate: 20, drawdown: 8}]
+  - name: trail_20_10
+    rules: [{type: trailing, activate: 20, drawdown: 10}]
+  - name: trail_20_15
+    rules: [{type: trailing, activate: 20, drawdown: 15}]
+  - name: trail_30_3
+    rules: [{type: trailing, activate: 30, drawdown: 3}]
+  - name: trail_30_5
+    rules: [{type: trailing, activate: 30, drawdown: 5}]
+  - name: trail_30_8
+    rules: [{type: trailing, activate: 30, drawdown: 8}]
+  - name: trail_30_10
+    rules: [{type: trailing, activate: 30, drawdown: 10}]
+  - name: trail_30_15
+    rules: [{type: trailing, activate: 30, drawdown: 15}]
+  - name: death_20_60
+    rules: [{type: death_cross, fast: 20, slow: 60}]
+  - name: trail20_8_OR_death
+    rules:
+      - {type: trailing, activate: 20, drawdown: 8}
+      - {type: death_cross, fast: 20, slow: 60}
+  - name: trail20_8_OR_ma20x2
+    rules:
+      - {type: trailing, activate: 20, drawdown: 8}
+      - {type: ma_break, ma: 20, confirm: 2}

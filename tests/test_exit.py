@@ -8,7 +8,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from exit.replay import Path
-from exit.rules import TrailingStop, TimeStop, MaBreakExit, StateExit, apply_ruleset
+from exit.rules import (TrailingStop, TimeStop, MaBreakExit, StateExit,
+                        MaDeathCross, apply_ruleset)
 from exit.metrics import evaluate, summarize
 
 
@@ -64,6 +65,25 @@ def test_state_exit():
     assert StateExit("nope").trigger(make_path([100, 90])) is None
 
 
+def test_ma_death_cross():
+    # fast 从 >= 变为 < slow：i=2 处死叉（下标 0/1/2 对应原路径 i）
+    fast = [100, 101, 99]
+    slow = [100, 100, 100]
+    p = Path(code="000001", base_date="2020-01-06", base_price=100.0,
+             close=np.array([100, 100, 100], dtype=float),
+             ma={20: np.array(fast, dtype=float),
+                 60: np.array(slow, dtype=float)},
+             horizon=2, meta={})
+    assert MaDeathCross(20, 60).trigger(p) == 2
+    # 无死叉
+    p2 = Path(code="1", base_date="2020-01-06", base_price=100.0,
+              close=np.array([100, 100, 100], dtype=float),
+              ma={20: np.array([101, 102, 103], dtype=float),
+                  60: np.array([100, 100, 100], dtype=float)},
+              horizon=2, meta={})
+    assert MaDeathCross(20, 60).trigger(p2) is None
+
+
 def test_ruleset_or_earliest():
     p = make_path([100, 120, 114, 90, 80])
     rs = [TrailingStop(10, 5), StateExit("base_low")]
@@ -110,7 +130,8 @@ def test_post_and_flying_stats():
 if __name__ == "__main__":
     import pandas as pd  # noqa: F401（evaluate 内部使用）
     for fn in [test_trailing_stop, test_time_stop, test_ma_break_exit,
-               test_state_exit, test_ruleset_or_earliest,
+               test_state_exit, test_ma_death_cross,
+               test_ruleset_or_earliest,
                test_evaluate_cost_and_segment, test_post_and_flying_stats]:
         fn()
         print(f"  PASS {fn.__name__}")

@@ -74,6 +74,29 @@ class MaBreakExit(Rule):
         return int(cand[0] + k) if len(cand) else None  # +k: 窗口右端(+1偏移)
 
 
+class MaDeathCross(Rule):
+    """均线死叉退出：fast 上穿转下穿 slow（与 zfzs 引擎死叉同构，附录一）。
+
+    死叉 = ma_fast[i-1] >= ma_slow[i-1] 且 ma_fast[i] < ma_slow[i]，
+    第 i 日收盘退出（R1/金叉体系的对照规则）。
+    """
+
+    def __init__(self, fast: int = 20, slow: int = 60):
+        self.fast, self.slow = fast, slow
+        self.name = f"death({fast}/{slow})"
+
+    def trigger(self, p: Path) -> int | None:
+        f, s = p.ma.get(self.fast), p.ma.get(self.slow)
+        if f is None or s is None:
+            raise KeyError(f"路径未预计算 MA{self.fast}/MA{self.slow}")
+        below = (f < s)
+        if len(below) < 2:
+            return None
+        cross = below[1:] & ~below[:-1]
+        idx = np.flatnonzero(cross)
+        return int(idx[0] + 1) if len(idx) else None
+
+
 class StateExit(Rule):
     """状态退出：逐日 close < 行透传阈值列 ref_col 即出（首个下标，自基准次日起）。"""
 
@@ -95,6 +118,8 @@ RULE_TYPES = {
     "time": lambda cfg: TimeStop(cfg["days"]),
     "ma_break": lambda cfg: MaBreakExit(cfg.get("ma", 20), cfg.get("confirm", 2)),
     "state": lambda cfg: StateExit(cfg["ref_col"]),
+    "death_cross": lambda cfg: MaDeathCross(cfg.get("fast", 20),
+                                            cfg.get("slow", 60)),
 }
 
 
