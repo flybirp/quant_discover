@@ -19,10 +19,11 @@ class Path:
     code: str
     base_date: str
     base_price: float
-    close: np.ndarray          # 自基准日起的收盘（含基准日）
-    ma: dict[int, np.ndarray]  # 自基准日起的均线（与 close 对齐）
+    close: np.ndarray          # 自基准起的收盘（含基准日）
+    ma: dict[int, np.ndarray]  # 自基准起的均线（与 close 对齐）
     horizon: int               # 路径长度（交易日）
     meta: dict = field(default_factory=dict)  # 透传行（分组/ref 列）
+    vol: np.ndarray | None = None  # 自基准起的成交量（状态研究用）
 
     @property
     def entry(self) -> float:
@@ -33,7 +34,8 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
                ma_periods: tuple[int, ...] = (20, 60),
                max_horizon: int = 250,
                passthrough: tuple[str, ...] = (),
-               query: str | None = None) -> list[Path]:
+               query: str | None = None,
+               include_vol: bool = False) -> list[Path]:
     """读契约明细，逐股重放生成路径列表。
 
     ma_periods: 需要预计算的均线周期（规则用到哪些就传哪些）；
@@ -61,6 +63,8 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
             continue
         dates = df["date"].dt.strftime("%Y-%m-%d").values
         close = df["close"].values.astype(float)
+        vol_all = (df["volume"].values.astype(float)
+                   if include_vol else None)
         idx = {d: k for k, d in enumerate(dates)}
         ma_arrays = {n: sma(df["close"], n).values for n in ma_periods}
 
@@ -80,7 +84,8 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
                 close=close[k:end],
                 ma={n: ma_arrays[n][k:end] for n in ma_periods},
                 horizon=end - k - 1,
-                meta=extra))
+                meta=extra,
+                vol=(vol_all[k:end] if vol_all is not None else None)))
     if skipped:
         print(f"  [replay] 跳过 {skipped} 行（停牌/缺数据）", flush=True)
     return paths
