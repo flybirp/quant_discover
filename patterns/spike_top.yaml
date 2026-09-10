@@ -10,6 +10,7 @@ detector:
     rebound_pct: 20.0
     peak_ratio: 0.9
     max_up_days: 500
+    half_ratio: 0.5        # 腰斩点价格比例：0.5=跌50%(06篇口径) / 0.3=跌70% / 0.2=跌80%
 min_data_days: 110          # 旧版 local_n*2 + 50
 dedup:                      # 同一"顶点->腰斩"事件可能被多个历史低点共享，保留最早低点
   keys: [code, peak_date, half_date]

@@ -788,6 +788,9 @@ def detect_spike_top(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     rebound_pct = float(p.get("rebound_pct", 20.0))
     peak_ratio = float(p.get("peak_ratio", 0.9))
     max_up_days = int(p.get("max_up_days", 500))
+    # half_ratio: 腰斩点的价格比例（0.5=跌到顶点的50%即腰斩；
+    # 0.3=跌70%；0.2=跌80%）。默认 0.5 保持 06 篇口径不变。
+    half_ratio = float(p.get("half_ratio", 0.5))
 
     close = df["close"].values.astype(float)
     high = df["high"].values.astype(float)
@@ -818,7 +821,7 @@ def detect_spike_top(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
 
         j = -1
         for k in range(m + 1, n):
-            if close[k] <= max_x / 2:
+            if close[k] <= max_x * half_ratio:
                 j = k
                 break
         if j == -1:
