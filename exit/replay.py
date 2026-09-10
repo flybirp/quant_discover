@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from core.engine import load_data, DEFAULT_DATA_DIR
+from core.market import load_index
 from indicator import sma
 
 
@@ -24,6 +25,7 @@ class Path:
     horizon: int               # 路径长度（交易日）
     meta: dict = field(default_factory=dict)  # 透传行（分组/ref 列）
     vol: np.ndarray | None = None  # 自基准起的成交量（状态研究用）
+    bench: np.ndarray | None = None  # 自基准起的基准指数收盘（超额状态用）
 
     @property
     def entry(self) -> float:
@@ -35,7 +37,10 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
                max_horizon: int = 250,
                passthrough: tuple[str, ...] = (),
                query: str | None = None,
-               include_vol: bool = False) -> list[Path]:
+               include_vol: bool = False,
+               bench: str | None = None) -> list[Path]:
+    """bench: 基准指数名（如 zz1000）；注入后 Path.bench 可用，
+    用于计算持有期超额（附录六）。"""
     """读契约明细，逐股重放生成路径列表。
 
     ma_periods: 需要预计算的均线周期（规则用到哪些就传哪些）；
@@ -49,6 +54,9 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
         sig["code"] = sig["code"].str.replace(r"\.0$", "", regex=True)
     if query:
         sig = sig.query(query)
+
+    # 基准指数：按个股日期 reindex + ffill 对齐（同 market.relative_return）
+    idx_series = load_index(bench) if bench else None
 
     paths: list[Path] = []
     skipped = 0
@@ -65,6 +73,12 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
         close = df["close"].values.astype(float)
         vol_all = (df["volume"].values.astype(float)
                    if include_vol else None)
+        if idx_series is not None:
+            dt_idx = pd.DatetimeIndex(df["date"])
+            bench_all = (idx_series.reindex(dt_idx.union(idx_series.index))
+                         .ffill().reindex(dt_idx).values.astype(float))
+        else:
+            bench_all = None
         idx = {d: k for k, d in enumerate(dates)}
         ma_arrays = {n: sma(df["close"], n).values for n in ma_periods}
 
@@ -85,7 +99,8 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
                 ma={n: ma_arrays[n][k:end] for n in ma_periods},
                 horizon=end - k - 1,
                 meta=extra,
-                vol=(vol_all[k:end] if vol_all is not None else None)))
+                vol=(vol_all[k:end] if vol_all is not None else None),
+                bench=(bench_all[k:end] if bench_all is not None else None)))
     if skipped:
         print(f"  [replay] 跳过 {skipped} 行（停牌/缺数据）", flush=True)
     return paths

@@ -110,6 +110,25 @@ def test_evaluate_cost_and_segment():
     assert list(s["segment"]) == ["all", "fit(14-21)", "validate(22-26)"]
 
 
+def test_bench_and_excess():
+    """基准注入 + 超额状态（附录六）：个股涨 10%、基准涨 4% -> 超额 +6pct"""
+    from exit.metrics import evaluate
+    p = make_path([100, 110, 120], base=100.0, base_date="2020-01-06")
+    p.bench = np.array([1000.0, 1040.0, 1080.0])   # 基准同期 +8%
+    # 观察点 t=1: 个股 +10%、基准 +4% -> excess = 6.0
+    cl, bench = p.close, p.bench
+    t = 1
+    ex = ((cl[t] / p.entry - 1) - (bench[t] / bench[0] - 1)) * 100
+    assert abs(ex - 6.0) < 1e-9
+    # 基准不变时 excess == pnl
+    p.bench = np.array([1000.0, 1000.0, 1000.0])
+    ex2 = ((cl[t] / p.entry - 1) - (p.bench[t] / p.bench[0] - 1)) * 100
+    assert abs(ex2 - 10.0) < 1e-9
+    # evaluate 不依赖 bench（无 bench 时照常工作）
+    df = evaluate([make_path([100, 120, 114])], [TrailingStop(10, 5)], 90, 0.30)
+    assert len(df) == 1
+
+
 def test_post_and_flying_stats():
     from exit.metrics import flying_stats
     # 退出 i=2（价 114），退出后 60 日 [120, 110]：post_max = 120/114-1 ≈ 5.26%
@@ -132,7 +151,8 @@ if __name__ == "__main__":
     for fn in [test_trailing_stop, test_time_stop, test_ma_break_exit,
                test_state_exit, test_ma_death_cross,
                test_ruleset_or_earliest,
-               test_evaluate_cost_and_segment, test_post_and_flying_stats]:
+               test_evaluate_cost_and_segment, test_post_and_flying_stats,
+               test_bench_and_excess]:
         fn()
         print(f"  PASS {fn.__name__}")
     print("all green")
