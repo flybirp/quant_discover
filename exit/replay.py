@@ -26,6 +26,7 @@ class Path:
     meta: dict = field(default_factory=dict)  # 透传行（分组/ref 列）
     vol: np.ndarray | None = None  # 自基准起的成交量（状态研究用）
     bench: np.ndarray | None = None  # 自基准起的基准指数收盘（超额状态用）
+    dates: np.ndarray | None = None  # 自基准起的日期（查 RPS 表用）
 
     @property
     def entry(self) -> float:
@@ -100,7 +101,8 @@ def load_paths(input_fp: Path, data_dir: Path | None = None,
                 horizon=end - k - 1,
                 meta=extra,
                 vol=(vol_all[k:end] if vol_all is not None else None),
-                bench=(bench_all[k:end] if bench_all is not None else None)))
+                bench=(bench_all[k:end] if bench_all is not None else None),
+                dates=dates[k:end]))
     if skipped:
         print(f"  [replay] 跳过 {skipped} 行（停牌/缺数据）", flush=True)
     return paths

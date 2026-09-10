@@ -52,6 +52,7 @@ def states_of(p) -> list[dict]:
             ex = np.nan
         rows.append({
             "code": p.code, "base_date": p.base_date, "t": t,
+            "obs_date": (p.dates[t] if p.dates is not None else None),
             "kind": kind, "vol_ratio": vr, "day_ret": day_ret,
             "dd": (peak_t - cl[t]) / peak_t * 100,
             "pnl": (cl[t] / p.entry - 1) * 100,
@@ -62,7 +63,7 @@ def states_of(p) -> list[dict]:
     return rows
 
 
-def main(fp: str):
+def main(fp: str, rps_fp: str | None = None):
     paths = load_paths(ROOT / fp, ma_periods=(), max_horizon=130,
                        include_vol=True, bench="zz1000")
     rows = []
@@ -70,6 +71,18 @@ def main(fp: str):
         rows.extend(states_of(p))
     d = pd.DataFrame(rows)
     d["year"] = d["base_date"].astype(str).str[:4]
+
+    # RPS 持有版：查全市场每日分位表（附录六），计算 RPS 衰减
+    if rps_fp:
+        rt = pd.read_parquet(rps_fp)
+        d = d.merge(rt.rename(columns={"date": "obs_date", "rps": "rps_t"}),
+                    on=["code", "obs_date"], how="left")
+        d = d.merge(rt.rename(columns={"date": "base_date", "rps": "rps0"}),
+                    on=["code", "base_date"], how="left")
+        d["rps_decay"] = d["rps_t"] - d["rps0"]
+        print(f"  RPS 表已接入: 匹配 t 点 "
+              f"{d['rps_t'].notna().mean() * 100:.1f}% | 入场点 "
+              f"{d['rps0'].notna().mean() * 100:.1f}%")
     print(f"== {fp} | 路径 {len(paths)} | 状态观测 {len(d)} 行\n")
 
     print("-- 分类状态（放量滞涨 vs 缩量新高 vs 普通）")
@@ -83,7 +96,9 @@ def main(fp: str):
     print("\n-- 连续状态 IC（对 t 后 60 日收益的 Spearman）")
     print(f"{'状态列':<10} {'IC':>7} {'n':>7} {'低档E60':>8} {'高档E60':>8}")
     print("-" * 46)
-    for f in ("vol_ratio", "dd", "pnl", "excess", "day_ret"):
+    extra = [c for c in ("rps_t", "rps_decay")
+             if c in d.columns and d[c].notna().sum() > 100]
+    for f in ("vol_ratio", "dd", "pnl", "excess", "day_ret") + tuple(extra):
         ok = d[f].notna() & d["ret60"].notna()
         sub = d[ok]
         if len(sub) < 30:
@@ -96,7 +111,7 @@ def main(fp: str):
               f"{lo:>+7.2f} {hi:>+7.2f}")
 
     print("\n-- 分年方向（IC 符号稳定性，按年计算 vol_ratio/dd/pnl 的 IC60）")
-    cols = [c for c in ("vol_ratio", "dd", "pnl", "excess")
+    cols = [c for c in ("vol_ratio", "dd", "pnl", "excess") + tuple(extra)
             if d[c].notna().sum() > 100]
     print(f"{'年':<6}" + "".join(f"{c:>12}" for c in cols))
     for y, s in d.groupby("year"):
@@ -112,4 +127,11 @@ def main(fp: str):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "output/catch_spike_top.csv")
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("input", nargs="?",
+                    default="output/catch_spike_top.csv")
+    ap.add_argument("--rps", default=None,
+                    help="RPS 每日分位表 parquet（tools/rps_table.py 产出）")
+    a = ap.parse_args()
+    main(a.input, a.rps)
