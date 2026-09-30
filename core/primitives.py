@@ -1998,6 +1998,159 @@ def detect_pullback_zfzs(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     return records
 
 
+@register("pullback_zone")
+def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
+    """zfzs 金叉波段内的回踩事件（三区口径）。
+
+    与旧版 pullback_zfzs 的差异（口径见附录）：
+
+    1. **入场过滤**：金叉日往前 ``pre_lookback`` 日内（含金叉日）须存在
+       "明确放量阳线"（实体涨幅 ≥ min_body_pct 且 量 ≥ vol_ratio ×
+       前 20 日均量（**不含当日**）），否则该金叉波段整体不纳入。
+    2. **回踩区 = [zs×(1−band), zf×(1+band)]**（双线夹成的带），
+       且须**自上方**（前一日 low > zf 上沿）跌入——修正旧版
+       "无下界、无方向"的缺陷：深度跌破不再冒充回踩，崩盘走势被
+       zs 下沿排除。
+    3. **zone（事前口径）** = 进入当日 low 所在的区：``zf``（未破 zf）/
+       ``mid``（破 zf 未破 zs）/ ``zs``（破 zs）；两线未分离
+       （gap < min_gap_pct，金叉初期常见）记 ``merged``，不参与分区统计。
+    4. **zone_deepest（事后标签）** = 该次回踩区间内最低 low 所在的区，
+       仅供对照，**不得用于收益分组**（含未来信息）。
+
+    base = 回踩日收盘价。
+    """
+    band = float(p.get("band_pct", 3.0)) / 100.0
+    max_pullbacks = int(p.get("max_pullbacks", 3))
+    min_gap_pct = float(p.get("min_gap_pct", 1.0))
+    pre_lookback = int(p.get("pre_lookback", 10))
+    min_body_pct = float(p.get("min_body_pct", 3.0))
+    vol_ratio = float(p.get("vol_ratio", 2.0))
+
+    close = df["close"].values
+    open_ = df["open"].values
+    low = df["low"].values
+    vol = df["volume"].values
+    dates = df["date"].values
+    n = len(close)
+
+    z_fast = zhixing_fast(df["close"]).values
+    z_slow = zhixing_slow(df["close"]).values
+    ma20 = sma(df["close"], 20).values
+    ma60 = sma(df["close"], 60).values
+    # 放量判定的分母：前 20 日均量（不含当日，附录"放量口径"）
+    vol_ma20_prev = sma(df["volume"], 20).shift(1).values
+
+    def _zone_of(px, zf, zs):
+        if np.isnan(zf) or np.isnan(zs) or zf <= 0 or zs <= 0:
+            return None
+        if (zf - zs) / zs * 100 < min_gap_pct:
+            return "merged"
+        if px >= zf:
+            return "zf"
+        if px >= zs:
+            return "mid"
+        return "zs"
+
+    def _find_breakout_bar(i):
+        """金叉日 i 往前 pre_lookback 日内（含 i）距金叉最近的一根放量阳线。"""
+        start = max(1, i - pre_lookback + 1)
+        for j in range(i, start - 1, -1):
+            if open_[j] <= 0 or np.isnan(vol_ma20_prev[j]) or vol_ma20_prev[j] <= 0:
+                continue
+            body = (close[j] - open_[j]) / open_[j] * 100
+            if body >= min_body_pct and vol[j] >= vol_ratio * vol_ma20_prev[j]:
+                return j, round(float(body), 2), round(float(vol[j] / vol_ma20_prev[j]), 2)
+        return None
+
+    records = []
+    in_position = False
+    entry_idx = None
+    bk = None
+
+    for i in range(1, n):
+        if np.isnan(z_fast[i]) or np.isnan(z_slow[i]) or np.isnan(ma20[i]) \
+                or np.isnan(ma60[i]) or np.isnan(vol_ma20_prev[i]):
+            continue
+
+        if not in_position:
+            if z_fast[i - 1] <= z_slow[i - 1] and z_fast[i] > z_slow[i]:
+                hit = _find_breakout_bar(i)
+                if hit is None:
+                    continue                      # 无启动确认 → 该波段不纳入
+                bj, bbody, bvr = hit
+                bk = (pd.Timestamp(dates[bj]).strftime("%Y-%m-%d"), bbody, bvr, i - bj)
+                in_position = True
+                entry_idx = i
+                pullback_no = 0
+                in_band = False
+                cur_rec = None
+                cur_min_low, cur_min_zf, cur_min_zs = np.inf, np.nan, np.nan
+            continue
+
+        # ── 波段内 ──
+        zf, zs = z_fast[i], z_slow[i]
+        upper = zf * (1 + band)                   # 回踩区上沿
+        lower = zs * (1 - band)                   # 回踩区下沿
+        in_zone = (low[i] <= upper) and (low[i] >= lower)
+        prev_upper = z_fast[i - 1] * (1 + band)
+
+        if not in_band:
+            if in_zone and low[i - 1] > prev_upper:      # 自上方跌入回踩区
+                in_band = True
+                pullback_no += 1
+                cur_min_low, cur_min_zf, cur_min_zs = low[i], zf, zs
+                cur_rec = None
+                if pullback_no <= max_pullbacks:
+                    seg = close[entry_idx:i + 1]
+                    peak_so_far = float(np.max(seg))
+                    dd_so_far = (peak_so_far - close[i]) / peak_so_far * 100
+                    ret5 = (close[i] / close[max(entry_idx, i - 5)] - 1) * 100 \
+                        if i - 5 >= entry_idx and close[i - 5] > 0 else np.nan
+                    prior_high = float(np.max(close[entry_idx:i])) if i > entry_idx \
+                        else float(close[entry_idx])
+                    cur_rec = {
+                        "code": code,
+                        "entry_date": pd.Timestamp(dates[entry_idx]).strftime("%Y-%m-%d"),
+                        "breakout_bar_date": bk[0],
+                        "breakout_body_pct": bk[1],
+                        "breakout_vol_ratio": bk[2],
+                        "days_to_cross": bk[3],
+                        "pullback_no": pullback_no,
+                        "no_bin": f"第{pullback_no}次",
+                        "zone": _zone_of(low[i], zf, zs),
+                        "zone_deepest": _zone_of(low[i], zf, zs),
+                        "gap_pct": round((zf - zs) / zs * 100, 2),
+                        "dist_zf_pct": round((low[i] - zf) / zf * 100, 2),
+                        "dist_zs_pct": round((low[i] - zs) / zs * 100, 2),
+                        "broke_zf": bool(low[i] < zf),
+                        "broke_zs": bool(low[i] < zs),
+                        "days_since_cross": i - entry_idx,
+                        "days_bin": _days_bin(i - entry_idx),
+                        "wave_dd_so_far": round(dd_so_far, 1),
+                        "dd_bin": _dd_bin(dd_so_far),
+                        "ret5_pct": round(ret5, 2) if not np.isnan(ret5) else np.nan,
+                        "prior_high": round(prior_high, 2),
+                        "base_price": round(float(close[i]), 2),
+                        "pullback_date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+                    }
+                    records.append(cur_rec)
+        elif in_zone:
+            if low[i] < cur_min_low:                      # 更新本次回踩最深点
+                cur_min_low, cur_min_zf, cur_min_zs = low[i], zf, zs
+            if cur_rec is not None:
+                cur_rec["zone_deepest"] = _zone_of(cur_min_low, cur_min_zf, cur_min_zs)
+        else:
+            in_band = False                               # 升破上沿或跌破下沿 → 复位
+            cur_rec = None
+
+        # 出场：MA20/60 死叉 → 波段结束
+        if ma20[i - 1] >= ma60[i - 1] and ma20[i] < ma60[i]:
+            in_position = False
+            cur_rec = None
+
+    return records
+
+
 def _dist_bin(d: float) -> str:
     if d >= 2.0:
         return "+2~+3%"
