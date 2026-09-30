@@ -2049,6 +2049,8 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     ma60 = sma(df["close"], 60).values
     # 放量判定的分母：前 20 日均量（不含当日，附录"放量口径"）
     vol_ma20_prev = sma(df["volume"], 20).shift(1).values
+    # 个股波动率（事前口径）：回踩日**之前** 60 个交易日日收益 std（%）
+    vol_60d = (pd.Series(close).pct_change().rolling(60).std().shift(1) * 100).values
 
     def _zone_of(px, zf, zs):
         if np.isnan(zf) or np.isnan(zs) or zf <= 0 or zs <= 0:
@@ -2170,6 +2172,8 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                         "bk_good": bool(good),
                         "bk_bad": bool(bad),
                         "bk_plain": bool(plain),
+                        "vol_60d": round(float(vol_60d[i]), 2)
+                        if not np.isnan(vol_60d[i]) else np.nan,
                         "pullback_no": pullback_no,
                         "no_bin": f"第{pullback_no}次",
                         "zone": _zone_of(low[i], zf, zs),

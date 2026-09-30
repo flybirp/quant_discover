@@ -12,6 +12,7 @@ group_cols:
 - bk_good
 - bk_bad
 - bk_plain
+- vol_60d
 - broke_zf
 - broke_zs
 - wave_dd_so_far
