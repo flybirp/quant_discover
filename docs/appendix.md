@@ -194,6 +194,9 @@
 | 距线 | `dist_zf_pct`/`dist_zs_pct` = `(low − zf 或 zs)/线值 ×100`（low 口径）；`broke_zf`/`broke_zs` = 是否跌破 |
 | prior_high / base | 同 09 篇：回踩日前（不含当日）波段内最高收盘；基准 = 回踩日收盘价 |
 
+| **敏感性网格列** | 配置 `grid_bodies` × `grid_volrs` 后，每个事件输出 `pass_b{X*10}_v{Y*10}` 布尔列 = 该波段窗口内**存在同一根 K 线**同时满足 实体≥X 且 量比≥Y（非分别取极值）。一次扫描覆盖全部格子，避免逐格重跑全市场 |
+| require_breakout | `false` = 关闭启动确认（对照/基线用）；`true`（默认）= 走单阈值 `min_body_pct`/`vol_ratio` 过滤 |
+
 > 与旧 `pullback_zfzs` 的关系：旧 detector 保留不动（09 篇历史数字可复现）；
 > 新 detector 修掉了旧版两个缺陷（无下界 → 崩盘冒充回踩；无方向 → 从下方回升
 > 也算回踩），并新增启动确认过滤与三区划分。

@@ -2026,6 +2026,11 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     min_body_pct = float(p.get("min_body_pct", 3.0))
     vol_ratio = float(p.get("vol_ratio", 2.0))
     require_breakout = bool(p.get("require_breakout", True))   # False = 关闭启动确认（对照用）
+    # 敏感性网格：一次扫描即标记"该波段是否通过每格 (实体≥X, 量比≥Y) 的
+    # 联合判定"，避免每个参数组合重跑全市场。列名 pass_b{X*10}_v{Y*10}。
+    grid_bodies = [float(x) for x in (p.get("grid_bodies") or [])]
+    grid_volrs = [float(y) for y in (p.get("grid_volrs") or [])]
+    grid = [(x, y) for x in grid_bodies for y in grid_volrs]
 
     close = df["close"].values
     open_ = df["open"].values
@@ -2052,16 +2057,16 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
             return "mid"
         return "zs"
 
-    def _find_breakout_bar(i):
-        """金叉日 i 往前 pre_lookback 日内（含 i）距金叉最近的一根放量阳线。"""
+    def _scan_window(i):
+        """金叉日 i 往前 pre_lookback 日内（含 i）各 K 线的 (下标, 实体%, 量比)。"""
+        bars = []
         start = max(1, i - pre_lookback + 1)
-        for j in range(i, start - 1, -1):
+        for j in range(start, i + 1):
             if open_[j] <= 0 or np.isnan(vol_ma20_prev[j]) or vol_ma20_prev[j] <= 0:
                 continue
             body = (close[j] - open_[j]) / open_[j] * 100
-            if body >= min_body_pct and vol[j] >= vol_ratio * vol_ma20_prev[j]:
-                return j, round(float(body), 2), round(float(vol[j] / vol_ma20_prev[j]), 2)
-        return None
+            bars.append((j, float(body), float(vol[j] / vol_ma20_prev[j])))
+        return bars
 
     records = []
     in_position = False
@@ -2075,10 +2080,22 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
 
         if not in_position:
             if z_fast[i - 1] <= z_slow[i - 1] and z_fast[i] > z_slow[i]:
-                hit = _find_breakout_bar(i) if require_breakout \
-                    else (i, np.nan, np.nan)      # 对照组：关闭启动确认
-                if hit is None:
+                bars = _scan_window(i)
+                hit = None
+                if require_breakout:              # 取距金叉最近的一根满足单阈值的 K 线
+                    for j, body, vr in reversed(bars):
+                        if body >= min_body_pct and vr >= vol_ratio:
+                            hit = (j, round(body, 2), round(vr, 2))
+                            break
+                if hit is None and require_breakout:
                     continue                      # 无启动确认 → 该波段不纳入
+                if hit is None:
+                    hit = (i, np.nan, np.nan)     # 对照组：关闭启动确认
+                grid_flags = {
+                    f"pass_b{int(x * 10)}_v{int(y * 10)}":
+                        any(bd >= x and vr >= y for _, bd, vr in bars)
+                    for x, y in grid
+                }
                 bj, bbody, bvr = hit
                 bk = (pd.Timestamp(dates[bj]).strftime("%Y-%m-%d"), bbody, bvr, i - bj)
                 in_position = True
@@ -2134,6 +2151,7 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                         "prior_high": round(prior_high, 2),
                         "base_price": round(float(close[i]), 2),
                         "pullback_date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+                        **grid_flags,
                     }
                     records.append(cur_rec)
         elif in_zone:

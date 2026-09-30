@@ -1,0 +1,38 @@
+name: pullback_zone_grid
+input: output/catch_pullback_zone_grid.csv
+group_cols:
+- no_bin
+- pullback_no
+- zone
+- zone_deepest
+- broke_zf
+- broke_zs
+- wave_dd_so_far
+- dd_bin
+- pass_b10_v15
+- pass_b10_v20
+- pass_b10_v30
+- pass_b10_v40
+- pass_b30_v15
+- pass_b30_v20
+- pass_b30_v30
+- pass_b30_v40
+- pass_b50_v15
+- pass_b50_v20
+- pass_b50_v30
+- pass_b50_v40
+horizons:
+- days: 20
+- days: 60
+events:
+- name: new_high_20d
+  ref_col: prior_high
+  horizon:
+    days: 20
+  type: above
+- name: new_high_60d
+  ref_col: prior_high
+  horizon:
+    days: 60
+  type: above
+output: an_pullback_zone_grid.csv
