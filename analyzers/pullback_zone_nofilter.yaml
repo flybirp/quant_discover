@@ -1,0 +1,28 @@
+name: pullback_zone_nofilter
+input: output/catch_pullback_zone_nofilter.csv
+group_cols:
+- no_bin
+- pullback_no
+- zone
+- zone_deepest
+- gap_pct
+- broke_zf
+- broke_zs
+- wave_dd_so_far
+- dd_bin
+- days_since_cross
+horizons:
+- days: 20
+- days: 60
+events:
+- name: new_high_20d
+  ref_col: prior_high
+  horizon:
+    days: 20
+  type: above
+- name: new_high_60d
+  ref_col: prior_high
+  horizon:
+    days: 60
+  type: above
+output: an_pullback_zone_nofilter.csv

@@ -1,0 +1,18 @@
+# 对照组：与 pullback_zone 完全同口径，仅关闭"启动确认"入场过滤
+# 用途：分离"启动确认过滤"与"回踩区/三区口径修正"各自的贡献（见 discover_09 对比节）
+name: pullback_zone_nofilter
+detector:
+  type: pullback_zone
+  params:
+    band_pct: 3.0
+    max_pullbacks: 3
+    min_gap_pct: 1.0
+    require_breakout: false
+min_data_days: 200
+contract:
+  date: pullback_date
+  price: base_price
+sort:
+  by: pullback_date
+  ascending: false
+output: catch_pullback_zone_nofilter.csv

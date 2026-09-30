@@ -1,5 +1,13 @@
 name: pullback_zf
 input: output/catch_pullback_zf.csv
+group_cols:
+- no_bin
+- pullback_no
+- dist_pct
+- dist_bin
+- broke_line
+- wave_dd_so_far
+- dd_bin
 horizons:
 - days: 5
 - days: 10

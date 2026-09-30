@@ -2025,6 +2025,7 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     pre_lookback = int(p.get("pre_lookback", 10))
     min_body_pct = float(p.get("min_body_pct", 3.0))
     vol_ratio = float(p.get("vol_ratio", 2.0))
+    require_breakout = bool(p.get("require_breakout", True))   # False = 关闭启动确认（对照用）
 
     close = df["close"].values
     open_ = df["open"].values
@@ -2074,7 +2075,8 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
 
         if not in_position:
             if z_fast[i - 1] <= z_slow[i - 1] and z_fast[i] > z_slow[i]:
-                hit = _find_breakout_bar(i)
+                hit = _find_breakout_bar(i) if require_breakout \
+                    else (i, np.nan, np.nan)      # 对照组：关闭启动确认
                 if hit is None:
                     continue                      # 无启动确认 → 该波段不纳入
                 bj, bbody, bvr = hit
