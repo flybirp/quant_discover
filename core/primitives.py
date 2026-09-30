@@ -2031,9 +2031,13 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     grid_bodies = [float(x) for x in (p.get("grid_bodies") or [])]
     grid_volrs = [float(y) for y in (p.get("grid_volrs") or [])]
     grid = [(x, y) for x in grid_bodies for y in grid_volrs]
+    # 启动 K 线质量：上影占比 / 是否为回看窗口最高点（出货嫌疑）
+    max_upper_shadow = float(p.get("max_upper_shadow", 0.30))
+    bad_upper_shadow = float(p.get("bad_upper_shadow", 0.40))
 
     close = df["close"].values
     open_ = df["open"].values
+    high = df["high"].values
     low = df["low"].values
     vol = df["volume"].values
     dates = df["date"].values
@@ -2058,15 +2062,21 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
         return "zs"
 
     def _scan_window(i):
-        """金叉日 i 往前 pre_lookback 日内（含 i）各 K 线的 (下标, 实体%, 量比)。"""
-        bars = []
+        """金叉日 i 往前 pre_lookback 日内（含 i）各 K 线：
+        (下标, 实体%, 量比, 上影占比, 是否窗口最高点)。"""
+        raw = []
         start = max(1, i - pre_lookback + 1)
         for j in range(start, i + 1):
             if open_[j] <= 0 or np.isnan(vol_ma20_prev[j]) or vol_ma20_prev[j] <= 0:
                 continue
             body = (close[j] - open_[j]) / open_[j] * 100
-            bars.append((j, float(body), float(vol[j] / vol_ma20_prev[j])))
-        return bars
+            rng = high[j] - low[j]
+            us = float((high[j] - max(open_[j], close[j])) / rng) if rng > 0 else 0.0
+            raw.append((j, float(body), float(vol[j] / vol_ma20_prev[j]), us, float(high[j])))
+        if not raw:
+            return []
+        win_high = max(r[4] for r in raw)
+        return [(j, bd, vr, us, h >= win_high) for j, bd, vr, us, h in raw]
 
     records = []
     in_position = False
@@ -2082,27 +2092,43 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
             if z_fast[i - 1] <= z_slow[i - 1] and z_fast[i] > z_slow[i]:
                 bars = _scan_window(i)
                 ok = None
-                for j, body, vr in reversed(bars):        # 距金叉最近的一根满足单阈值者
+                good = bad = plain = False
+                for j, body, vr, us, is_high in reversed(bars):
                     if body >= min_body_pct and vr >= vol_ratio:
-                        ok = (j, round(body, 2), round(vr, 2))
-                        break
+                        if ok is None:
+                            ok = (j, round(body, 2), round(vr, 2))   # 距金叉最近的达标者
+                        if us <= max_upper_shadow and not is_high:
+                            good = True          # 优质启动：短上影 + 非窗口最高
+                        elif us >= bad_upper_shadow and is_high:
+                            bad = True           # 出货嫌疑：长上影 + 窗口最高点
+                        else:
+                            plain = True
                 if require_breakout and ok is None:
                     continue                              # 无启动确认 → 该波段不纳入
-                if ok is None:
-                    # 对照组（或无满足者）：记录窗口内实体最大的一根，供人工核对
+                # 代表 K 线：优先"优质启动"那根，否则窗口内实体最大的一根
+                rep = None
+                for j, body, vr, us, is_high in reversed(bars):
+                    if body >= min_body_pct and vr >= vol_ratio \
+                            and us <= max_upper_shadow and not is_high:
+                        rep = (j, round(body, 2), round(vr, 2),
+                               round(us * 100, 1), bool(is_high))
+                        break
+                if rep is None:
                     if bars:
-                        j, body, vr = max(bars, key=lambda t: t[1])
-                        ok = (j, round(body, 2), round(vr, 2))
+                        j, body, vr, us, is_high = max(bars, key=lambda t: t[1])
+                        rep = (j, round(body, 2), round(vr, 2),
+                               round(us * 100, 1), bool(is_high))
                     else:
-                        ok = (i, np.nan, np.nan)
-                hit = ok
+                        rep = (i, np.nan, np.nan, np.nan, False)
+                hit = (rep[0], rep[1], rep[2])
                 grid_flags = {
                     f"pass_b{int(x * 10)}_v{int(y * 10)}":
-                        any(bd >= x and vr >= y for _, bd, vr in bars)
+                        any(bd >= x and vr >= y for _, bd, vr, _u, _h in bars)
                     for x, y in grid
                 }
                 bj, bbody, bvr = hit
                 bk = (pd.Timestamp(dates[bj]).strftime("%Y-%m-%d"), bbody, bvr, i - bj)
+                bk_us, bk_is_high = rep[3], rep[4]
                 in_position = True
                 entry_idx = i
                 pullback_no = 0
@@ -2139,6 +2165,11 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                         "breakout_body_pct": bk[1],
                         "breakout_vol_ratio": bk[2],
                         "days_to_cross": bk[3],
+                        "bk_upper_shadow_pct": bk_us,
+                        "bk_is_window_high": bk_is_high,
+                        "bk_good": bool(good),
+                        "bk_bad": bool(bad),
+                        "bk_plain": bool(plain),
                         "pullback_no": pullback_no,
                         "no_bin": f"第{pullback_no}次",
                         "zone": _zone_of(low[i], zf, zs),

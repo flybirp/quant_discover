@@ -5,6 +5,13 @@ group_cols:
 - pullback_no
 - zone
 - zone_deepest
+- breakout_body_pct
+- breakout_vol_ratio
+- bk_upper_shadow_pct
+- bk_is_window_high
+- bk_good
+- bk_bad
+- bk_plain
 - broke_zf
 - broke_zs
 - wave_dd_so_far
