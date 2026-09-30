@@ -2081,16 +2081,21 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
         if not in_position:
             if z_fast[i - 1] <= z_slow[i - 1] and z_fast[i] > z_slow[i]:
                 bars = _scan_window(i)
-                hit = None
-                if require_breakout:              # 取距金叉最近的一根满足单阈值的 K 线
-                    for j, body, vr in reversed(bars):
-                        if body >= min_body_pct and vr >= vol_ratio:
-                            hit = (j, round(body, 2), round(vr, 2))
-                            break
-                if hit is None and require_breakout:
-                    continue                      # 无启动确认 → 该波段不纳入
-                if hit is None:
-                    hit = (i, np.nan, np.nan)     # 对照组：关闭启动确认
+                ok = None
+                for j, body, vr in reversed(bars):        # 距金叉最近的一根满足单阈值者
+                    if body >= min_body_pct and vr >= vol_ratio:
+                        ok = (j, round(body, 2), round(vr, 2))
+                        break
+                if require_breakout and ok is None:
+                    continue                              # 无启动确认 → 该波段不纳入
+                if ok is None:
+                    # 对照组（或无满足者）：记录窗口内实体最大的一根，供人工核对
+                    if bars:
+                        j, body, vr = max(bars, key=lambda t: t[1])
+                        ok = (j, round(body, 2), round(vr, 2))
+                    else:
+                        ok = (i, np.nan, np.nan)
+                hit = ok
                 grid_flags = {
                     f"pass_b{int(x * 10)}_v{int(y * 10)}":
                         any(bd >= x and vr >= y for _, bd, vr in bars)
