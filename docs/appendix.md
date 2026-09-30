@@ -198,6 +198,7 @@
 | require_breakout | `false` = 关闭启动确认（对照/基线用）；`true`（默认）= 走单阈值 `min_body_pct`/`vol_ratio` 过滤 |
 | **上影占比** | `(high − max(open, close)) / (high − low)`；`high == low`（一字）记 0。输出列 `bk_upper_shadow_pct`（百分数） |
 | **窗口最高点** | 该 K 线 `high` 为 `pre_lookback` 窗口内最高（`bk_is_window_high`）。窗口 = 金叉日前 `pre_lookback` 日（含金叉日），**非任意更长周期** |
+| **前期状态（hist）** | hist 窗口 = `[i − pre_lookback − hist_lookback(120), i − pre_lookback)`（即启动确认窗口**之前**的更长周期）。`hist_entangle_pct` = 窗口内 `(zf−zs)/zs ≤ hist_entangle_pct(2%)` 的日占比（含 zf 在 zs 下方与纠缠）；`hist_zf_slope`/`hist_zs_slope` = `(末−首)/首/天数`（**%/日**）；`hist_vol_cv` = 窗口内 `std(volume)/mean(volume)`。`hist_flat` = 纠缠占比 ≥ 80% 且 两线斜率绝对值 ≤ 0.05%/日 且 CV ≤ 0.60 |
 | **bk_good / bk_bad / bk_plain** | 在"达标"（实体 ≥ `min_body_pct` 且 量比 ≥ `vol_ratio`）的 K 线中：`bk_good` = 上影占比 ≤ `max_upper_shadow`(0.30) 且 非窗口最高；`bk_bad` = 上影占比 ≥ `bad_upper_shadow`(0.40) 且 是窗口最高；`bk_plain` = 达标但不属于前两者。三者为**波段级存在性**标记（窗口内存在即 True），互斥不成立（可同时 good 与 bad） |
 
 > 与旧 `pullback_zfzs` 的关系：旧 detector 保留不动（09 篇历史数字可复现）；

@@ -13,6 +13,11 @@ group_cols:
 - bk_bad
 - bk_plain
 - vol_60d
+- hist_entangle_pct
+- hist_zf_slope
+- hist_zs_slope
+- hist_vol_cv
+- hist_flat
 - broke_zf
 - broke_zs
 - wave_dd_so_far

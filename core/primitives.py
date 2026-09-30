@@ -2034,6 +2034,12 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     # 启动 K 线质量：上影占比 / 是否为回看窗口最高点（出货嫌疑）
     max_upper_shadow = float(p.get("max_upper_shadow", 0.30))
     bad_upper_shadow = float(p.get("bad_upper_shadow", 0.40))
+    # 前期状态（hist 窗口 = 启动确认窗口**之前**的更长周期，底部纠缠检测）
+    hist_lookback = int(p.get("hist_lookback", 120))
+    hist_entangle_pct = float(p.get("hist_entangle_pct", 2.0))    # |zf-zs|/zs ≤ 此值视为纠缠
+    hist_entangle_ratio = float(p.get("hist_entangle_ratio", 0.80))
+    hist_slope_max = float(p.get("hist_slope_max", 0.05))         # %/日
+    hist_vol_cv_max = float(p.get("hist_vol_cv_max", 0.60))       # 量能变异系数上限
 
     close = df["close"].values
     open_ = df["open"].values
@@ -2079,6 +2085,33 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
             return []
         win_high = max(r[4] for r in raw)
         return [(j, bd, vr, us, h >= win_high) for j, bd, vr, us, h in raw]
+
+    def _hist_state(i):
+        """金叉前（启动确认窗口之前）更长周期的状态：底部纠缠 + 走平 + 量稳。
+
+        窗口 = [i - pre_lookback - hist_lookback, i - pre_lookback)。
+        返回 (纠缠占比%, zf斜率%/日, zs斜率%/日, 量能CV, 是否 hist_flat)。
+        """
+        a = i - pre_lookback - hist_lookback
+        b = i - pre_lookback
+        a = max(a, 1)
+        if b - a < 20 or b > n:
+            return (np.nan, np.nan, np.nan, np.nan, False)
+        sf, ss, sv = z_fast[a:b], z_slow[a:b], vol[a:b]
+        if np.isnan(sf).any() or np.isnan(ss).any() or ss.min() <= 0:
+            return (np.nan, np.nan, np.nan, np.nan, False)
+        gap = (sf - ss) / ss * 100
+        ent = float(np.mean(gap <= hist_entangle_pct))            # zf 在 zs 下方或纠缠
+        sl_f = float((sf[-1] - sf[0]) / sf[0] / len(sf) * 100)    # %/日
+        sl_s = float((ss[-1] - ss[0]) / ss[0] / len(ss) * 100)
+        mv = float(np.mean(sv))
+        cv = float(np.std(sv) / mv) if mv > 0 else np.nan
+        flat = bool(ent >= hist_entangle_ratio
+                    and abs(sl_f) <= hist_slope_max
+                    and abs(sl_s) <= hist_slope_max
+                    and (not np.isnan(cv) and cv <= hist_vol_cv_max))
+        return (round(ent * 100, 1), round(sl_f, 4), round(sl_s, 4),
+                round(cv, 2) if not np.isnan(cv) else np.nan, flat)
 
     records = []
     in_position = False
@@ -2131,6 +2164,7 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                 bj, bbody, bvr = hit
                 bk = (pd.Timestamp(dates[bj]).strftime("%Y-%m-%d"), bbody, bvr, i - bj)
                 bk_us, bk_is_high = rep[3], rep[4]
+                hist = _hist_state(i)
                 in_position = True
                 entry_idx = i
                 pullback_no = 0
@@ -2174,6 +2208,11 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                         "bk_plain": bool(plain),
                         "vol_60d": round(float(vol_60d[i]), 2)
                         if not np.isnan(vol_60d[i]) else np.nan,
+                        "hist_entangle_pct": hist[0],
+                        "hist_zf_slope": hist[1],
+                        "hist_zs_slope": hist[2],
+                        "hist_vol_cv": hist[3],
+                        "hist_flat": bool(hist[4]),
                         "pullback_no": pullback_no,
                         "no_bin": f"第{pullback_no}次",
                         "zone": _zone_of(low[i], zf, zs),
