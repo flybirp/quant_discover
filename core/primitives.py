@@ -2040,6 +2040,11 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
     hist_entangle_ratio = float(p.get("hist_entangle_ratio", 0.80))
     hist_slope_max = float(p.get("hist_slope_max", 0.05))         # %/日
     hist_vol_cv_max = float(p.get("hist_vol_cv_max", 0.60))       # 量能变异系数上限
+    # 前期状态阈值网格：一次扫描标记全部格子 hf_e{E}_s{S*100}_c{C*10}
+    grid_ent = [float(x) for x in (p.get("grid_ent") or [])]        # 纠缠占比 ≥ (%)
+    grid_slope = [float(x) for x in (p.get("grid_slope") or [])]    # 斜率 ≤ (%/日)
+    grid_cv = [float(x) for x in (p.get("grid_cv") or [])]          # 量能 CV ≤
+    grid_hist = [(e, s, c) for e in grid_ent for s in grid_slope for c in grid_cv]
 
     close = df["close"].values
     open_ = df["open"].values
@@ -2165,6 +2170,14 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                 bk = (pd.Timestamp(dates[bj]).strftime("%Y-%m-%d"), bbody, bvr, i - bj)
                 bk_us, bk_is_high = rep[3], rep[4]
                 hist = _hist_state(i)
+                hist_flags = {}
+                for e, s, c in grid_hist:
+                    hist_flags[f"hf_e{int(e)}_s{int(s * 100)}_c{int(c * 10)}"] = bool(
+                        hist[0] >= e
+                        and not np.isnan(hist[1]) and abs(hist[1]) <= s
+                        and not np.isnan(hist[2]) and abs(hist[2]) <= s
+                        and not np.isnan(hist[3]) and hist[3] <= c
+                    )
                 in_position = True
                 entry_idx = i
                 pullback_no = 0
@@ -2213,6 +2226,7 @@ def detect_pullback_zone(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
                         "hist_zs_slope": hist[2],
                         "hist_vol_cv": hist[3],
                         "hist_flat": bool(hist[4]),
+                        **hist_flags,
                         "pullback_no": pullback_no,
                         "no_bin": f"第{pullback_no}次",
                         "zone": _zone_of(low[i], zf, zs),
