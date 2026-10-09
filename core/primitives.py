@@ -652,7 +652,22 @@ def detect_base_break(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
 
     相对旧版: 剥离 ret_1w~4w / max_up_4w / max_dd_4w / recover_base，
     新增 base_price = 跌破日收盘价（统一契约的买点基准）。
+
+    可选前置特征（``box_drain=True`` 才计算/输出，默认关闭以保持历史可复现）：
+      * is_box   —— 筑底段是"箱体"：周线口径下沿触及 ≥ box_min_touches 次
+                    且上沿触及 ≥ box_min_touches 次（容差 box_touch_tol_pct）
+      * is_drain —— 跌破前 drain_days 日均量 / 前 drain_base_days 日均量
+                    ≤ drain_ratio（缩量横盘期）；输出 pre_vol_ratio
     """
+    box_drain = bool(p.get("box_drain", False))
+    box_touch_tol_pct = float(p.get("box_touch_tol_pct", 2.0))
+    box_min_touches = int(p.get("box_min_touches", 2))
+    drain_days = int(p.get("drain_days", 10))
+    drain_base_days = int(p.get("drain_base_days", 60))
+    drain_ratio = float(p.get("drain_ratio", 0.70))
+    require_box = bool(p.get("require_box", False))
+    require_drain = bool(p.get("require_drain", False))
+
     weekly = to_calendar_weekly(df)
     nw = len(weekly)
 
@@ -742,6 +757,33 @@ def detect_base_break(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
             continue
         penetration_pct = (base_low - break_low) / base_low * 100
 
+        # ── 可选前置特征：箱体形态 + 跌破前缩量（周线/日线口径见附录）──
+        box_bot_t = box_top_t = np.nan
+        pre_vol_ratio = np.nan
+        is_box = is_drain = False
+        if box_drain:
+            tol = box_touch_tol_pct / 100.0
+            wl = weekly["low"].iloc[i:seg_end + 1].astype(float).values
+            wh = weekly["high"].iloc[i:seg_end + 1].astype(float).values
+            seg_high_max = float(np.max(wh)) if len(wh) else np.nan
+            box_bot_t = int(np.sum(wl <= base_low * (1 + tol)))
+            box_top_t = int(np.sum(wh >= seg_high_max * (1 - tol))) \
+                if not np.isnan(seg_high_max) else 0
+            is_box = bool(box_bot_t >= box_min_touches and box_top_t >= box_min_touches)
+            a = max(0, break_idx - drain_days)
+            b = max(0, break_idx - drain_base_days)
+            pre_mean = float(np.mean(volume[a:break_idx])) if break_idx > a else np.nan
+            base_mean = float(np.mean(volume[b:break_idx])) if break_idx > b else np.nan
+            pre_vol_ratio = float(pre_mean / base_mean) \
+                if base_mean and base_mean > 0 and not np.isnan(pre_mean) else np.nan
+            is_drain = bool(not np.isnan(pre_vol_ratio) and pre_vol_ratio <= drain_ratio)
+            if require_box and not is_box:
+                i = seg_end + 1
+                continue
+            if require_drain and not is_drain:
+                i = seg_end + 1
+                continue
+
         vb_start = max(0, break_idx - p["vol_base_days"])
         vol_base = np.mean(volume[vb_start:break_idx])
         vol_ratio = volume[break_idx] / vol_base if vol_base > 0 else np.nan
@@ -770,6 +812,14 @@ def detect_base_break(df: pd.DataFrame, code: str, p: dict) -> list[dict]:
             "penetration_pct": round(penetration_pct, 2),
             "volume_ratio": round(float(vol_ratio), 2) if not pd.isna(vol_ratio) else np.nan,
             "volume_type": vol_type,
+            **({
+                "box_bottom_touches": box_bot_t,
+                "box_top_touches": box_top_t,
+                "is_box": bool(is_box),
+                "pre_vol_ratio": round(pre_vol_ratio, 2)
+                if not np.isnan(pre_vol_ratio) else np.nan,
+                "is_drain": bool(is_drain),
+            } if box_drain else {}),
         })
         i = seg_end + 1
 

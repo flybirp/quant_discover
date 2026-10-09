@@ -1,0 +1,33 @@
+# 放量下漏研究：箱体震荡 + 中期下跌 + 缩量横盘 → 放量跌破平台下沿
+# 在 04 base_break 同口径基础上，额外计算两个前置标记（不过滤，供四象限对照）：
+#   is_box   = 筑底段上下沿均被反复测试（周线口径，容差 2%，各 ≥2 次）
+#   is_drain = 跌破前 10 日均量 / 前 60 日均量 ≤ 0.70（缩量横盘期）
+name: base_break_box_drain
+detector:
+  type: base_break
+  params:
+    min_base_weeks: 2
+    support_tolerance_pct: 5.0
+    lookback_weeks: 12
+    decline_pct: 20.0
+    range_amplitude_pct: 40.0
+    range_low_margin_pct: 10.0
+    group_ratios: [0.95, 0.90, 0.85, 0.70]
+    group_names: [A, B, C, D]
+    vol_base_days: 20
+    vol_ratio_high: 1.2
+    vol_ratio_low: 0.8
+    box_drain: true
+    box_touch_tol_pct: 2.0
+    box_min_touches: 2
+    drain_days: 10
+    drain_base_days: 60
+    drain_ratio: 0.70
+min_data_days: 180
+contract:
+  date: break_date
+  price: base_price
+sort:
+  by: break_date
+  ascending: false
+output: catch_base_break_box_drain.csv

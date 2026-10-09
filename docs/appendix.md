@@ -205,6 +205,18 @@
 > 新 detector 修掉了旧版两个缺陷（无下界 → 崩盘冒充回踩；无方向 → 从下方回升
 > 也算回踩），并新增启动确认过滤与三区划分。
 
+### 04b 放量下漏：箱体 + 缩量前置（`patterns/base_break_box_drain.yaml`）
+
+在 04 `base_break` 基础上增加两个**可选前置标记**（`box_drain: true` 才计算，
+默认关闭以保持 04 篇历史数字可复现）：
+
+| 用词 | 精确定义 |
+|------|---------|
+| **箱体 is_box** | 筑底段（周线 `i..seg_end`）内：下沿触及次数 = 周 `low ≤ base_low×(1+box_touch_tol)` 的周数；上沿触及次数 = 周 `high ≥ 段内最高 high×(1−box_touch_tol)` 的周数。两者均 ≥ `box_min_touches`（默认 2）判为箱体——**上下沿都被反复测试**（默认 `box_touch_tol_pct=2.0`） |
+| **缩量期 is_drain** | `pre_vol_ratio` = 跌破日前 `drain_days`(10) 个交易日均量 ÷ 前 `drain_base_days`(60) 个交易日均量（**均不含跌破日**）；≤ `drain_ratio`(0.70) 判为缩量横盘期 |
+| require_box / require_drain | 过滤开关（默认 false = 只打标记不过滤，供分析层做四象限对照） |
+| 与 04 篇量比的关系 | 04 篇 `volume_ratio` = 跌破日量 ÷ **前 20 日均量（不含当日）**；`pre_vol_ratio` 是**跌破之前一段**的量能水平，两者不同维度，不可混淆 |
+
 ### 10 / 12 分型与击败
 
 **fractal_bottom / fractal_top**（三 K）：

@@ -1,0 +1,29 @@
+name: base_break_box_drain
+input: output/catch_base_break_box_drain.csv
+horizons:
+- weeks: 4
+- days: 20
+- days: 60
+events:
+- name: recover_base
+  ref_col: base_low
+  horizon:
+    weeks: 4
+group_cols:
+- group
+- volume_type
+- position_type
+- is_box
+- is_drain
+- box_bottom_touches
+- box_top_touches
+- pre_vol_ratio
+- volume_ratio
+- penetration_pct
+- base_weeks
+- base_range_pct
+- prior_decline_pct
+output: an_base_break_box_drain.csv
+ic:
+  signal: penetration_pct
+  horizon: ret_20d
